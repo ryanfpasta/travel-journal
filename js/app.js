@@ -547,17 +547,20 @@
   function viewMap(date) {
     return '<div class="mapview"><div id="map"></div><div class="map-top">' +
       (date ? '<a class="pill" href="#/map">' + Store.shortDay(date) + " ✕</a>" : '<button class="pill" data-trips>' + esc(tripName()) + " ▾</button>") +
-      '<label class="pill"><input type="checkbox" id="tilesBox"' + (Store.settings.streetMap !== false ? " checked" : "") + "> Street map</label></div></div>";
+      '<label class="pill"><input type="checkbox" id="tilesBox"' + (Store.settings.streetMap !== false ? " checked" : "") + "> Street map</label></div>" +
+      '<button class="pill map-save" id="saveArea">⬇️ Save this area for offline</button></div>';
   }
   function bindMap(root, date) {
     var el = $("#map", root);
     map = L.map(el, { zoomControl: false, worldCopyJump: true, attributionControl: true }).setView([50, -100], 3);
+    el._journalMap = map;
     L.control.zoom({ position: "bottomright" }).addTo(map);
     if (window.WORLD_TOPO) {
       L.geoJSON(topojson.feature(WORLD_TOPO, WORLD_TOPO.objects.countries), { style: { color: "#c9b8aa", weight: 1, fillColor: "#f4ece2", fillOpacity: 1 }, interactive: false }).addTo(map);
     }
     tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, crossOrigin: true, attribution: "© OpenStreetMap" });
     if (Store.settings.streetMap !== false) tiles.addTo(map);
+    $("#saveArea", root).onclick = saveMapArea;
     $("#tilesBox", root).onchange = function () {
       Store.saveSettings({ streetMap: this.checked });
       if (this.checked) tiles.addTo(map); else map.removeLayer(tiles);
@@ -577,6 +580,47 @@
     });
     if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
     setTimeout(function () { map && map.invalidateSize(); }, 50);
+  }
+
+  // ---- Offline map areas ----
+  // Street tiles are kept once seen. This fetches a whole area ahead of time (the service worker keeps
+  // them), a few zoom levels deeper than what's on screen. OpenStreetMap's servers are shared and
+  // free, so it's capped per area and per day, like the Android app.
+  var AREA_MAX = 800, DAY_MAX = 2500, DEEPEST = 16;
+  function tilesFor(bounds, z) {
+    function x(lon) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
+    function y(lat) { var r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z)); }
+    var out = [], n = Math.pow(2, z);
+    var x0 = x(bounds.getWest()), x1 = x(bounds.getEast()), y0 = y(Math.min(85, bounds.getNorth())), y1 = y(Math.max(-85, bounds.getSouth()));
+    for (var tx = x0; tx <= x1; tx++) for (var ty = y0; ty <= y1; ty++) if (ty >= 0 && ty < n) out.push(z + "/" + (((tx % n) + n) % n) + "/" + ty);
+    return out;
+  }
+  function saveMapArea() {
+    if (!map) return;
+    if (!navigator.onLine) return toast("You're offline. Save map areas while you have Wi-Fi.");
+    // Zoomed-out views of the same area are only a few pieces each, so they come along too.
+    var b = map.getBounds(), z0 = Math.max(2, Math.round(map.getZoom()) - 4), list = [], zTop = z0;
+    for (var z = z0; z <= DEEPEST; z++) { var t = tilesFor(b, z); if (list.length + t.length > AREA_MAX) break; list = list.concat(t); zTop = z; }
+    if (zTop < Math.min(13, DEEPEST)) return sheet("<h3>Zoom in a bit more</h3><p>This area is too big to save in street detail. Zoom in on one town or region (so it fills the screen) and tap Save again. You can save as many areas as you like, one at a time.</p>");
+    var day = Store.today(), used = Store.settings.tileDay === day ? Store.settings.tileCount || 0 : 0;
+    if (used + list.length > DAY_MAX) return sheet("<h3>That's enough for today</h3><p>The free map servers ask apps not to download too much at once. Try again tomorrow; the areas you've already saved stay saved.</p>");
+    sheet("<h3>Save this area for offline?</h3><p>Downloads " + list.length + " map pieces (about " + Math.max(1, Math.round(list.length * 0.02)) + " MB), down to street level, so this area works with no signal. Use Wi-Fi if you can.</p>", [
+      { label: "Cancel" },
+      { label: "Save", cls: "primary", onClick: function () {
+        runJob("Saving map area", async function (progress) {
+          var ok = 0, fail = 0;
+          for (var i = 0; i < list.length; i++) {
+            try { var r = await fetch("https://tile.openstreetmap.org/" + list[i] + ".png", { mode: "cors" }); if (r.ok) ok++; else fail++; } catch (e) { fail++; }
+            if (i % 10 === 0) progress("Map pieces " + (i + 1) + " of " + list.length + "…");
+          }
+          await Store.saveSettings({ tileDay: day, tileCount: used + list.length });
+          return { ok: ok, fail: fail };
+        }).then(function (r) {
+          if (!r) return;
+          sheet("<h3>Area saved</h3><p>" + r.ok + " map pieces kept for offline use" + (r.fail ? " (" + r.fail + " didn't download; try again on better Wi-Fi)" : "") + ". Pan to the next town and save that too.</p>");
+        });
+      } },
+    ]);
   }
 
   // ---- More ----

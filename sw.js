@@ -1,9 +1,9 @@
 // Offline support. The app's own files are cached on install, so the journal opens with no signal.
 // Bump VERSION on every release; the app offers the update and the journal data is untouched.
-var VERSION = "1.1.1";
+var VERSION = "1.2.0";
 var APP_CACHE = "journal-app-" + VERSION;
 var TILE_CACHE = "journal-tiles";
-var MAX_TILES = 3000;
+var MAX_TILES = 20000; // about 400 MB at most; saved areas need room
 var FILES = [
   "./", "index.html", "style.css", "manifest.webmanifest",
   "js/zip.js", "js/exif.js", "js/store.js", "js/photos.js", "js/app.js",

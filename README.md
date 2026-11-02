@@ -37,8 +37,16 @@ The memory box shows photos only for now.
 - **Photos taken in the app are not added to the Camera Roll.** They live in the journal (and in
   backups). For important shots you can use the normal Camera app and **Add from library** later;
   the photo keeps its date, and gets a nearby location reading if iOS hides its own.
-- **Maps** use online OpenStreetMap tiles, and every tile you've looked at is kept for offline use.
-  The country outlines always work offline. (Mapsforge `.map` files are Android-only.)
+- **Maps** use online OpenStreetMap tiles. Every tile you've looked at is kept for offline use, and
+  **Map → Save this area for offline** downloads the area on screen down to street level ahead of time
+  (up to 800 pieces per area and 2,500 a day, to respect the free OSM servers; zoom in to a town or
+  region first). The country outlines always work offline. (Mapsforge `.map` files are Android-only.)
+
+## No signal
+
+After the first visit the whole app is stored on the phone and opens in Airplane Mode. Photos, videos,
+notes, places, the calendar and backups all work offline; GPS works without data (the first fix can
+take longer). Only new map areas and app updates need internet.
 
 ## Not losing anything
 
