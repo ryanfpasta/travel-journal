@@ -6,7 +6,7 @@ ratings, meals and experiences, notes, a calendar, a map, backups, and the memor
 
 ## Install on the iPhone
 
-1. Open the app's web address in **Safari** (not Chrome).
+1. Open the app's web address in **Safari** (Edge and Chrome work too; camera and location permissions then follow that browser's settings).
 2. Tap **Share** (the square with the arrow), then **Add to Home Screen**, then **Add**.
 3. Open it from the new **Journal** icon. Allow location ("While Using the App") and camera when asked.
 

@@ -288,7 +288,7 @@
       catch (e) {
         var denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
         $("#camMsg", o).innerHTML = denied
-          ? "The iPhone blocked the camera for this app.<br>Open <b>Settings → Apps → Safari → Camera</b>, choose <b>Allow</b>, then close and reopen the journal."
+          ? "The iPhone blocked the camera for this app.<br>Open <b>Settings → Apps</b>, pick the browser you installed the journal from (<b>Safari</b>, <b>Edge</b>, <b>Chrome</b>…), set <b>Camera</b> to <b>Allow</b>, then close and reopen the journal."
           : "The camera couldn't start (" + esc(e && (e.name || e.message)) + ").<br>Use the Camera app, then Add from library.";
       }
     }
@@ -317,7 +317,7 @@
     sheet("<h3>Camera shows a black screen?</h3>" +
       "<p>Try the <b>built-in camera</b> first: it works differently from the iPhone's camera screen and often works when that one stays black.</p>" +
       "<p>If both stay black:</p>" +
-      "<ol><li>Open <b>Settings → Apps → Safari → Camera</b> (older iPhones: <b>Settings → Safari → Camera</b>) and choose <b>Allow</b> or <b>Ask</b>.</li>" +
+      "<ol><li>Open <b>Settings → Apps</b> and pick the browser you added the journal from: <b>Safari</b>, <b>Edge</b>, <b>Chrome</b> or another. Set <b>Camera</b> to <b>Allow</b> or <b>Ask</b>. (Older iPhones: <b>Settings → Safari → Camera</b>.)</li>" +
       "<li>If that's already on, check <b>Settings → Screen Time → Content &amp; Privacy Restrictions → Allowed Apps</b> and make sure <b>Camera</b> is on.</li>" +
       "<li>Swipe the journal away in the app switcher, open it again from the Home Screen icon, and try again.</li>" +
       "<li>Restart the iPhone. iOS sometimes leaves the camera stuck for web apps until a restart.</li></ol>" +
@@ -357,7 +357,7 @@
     if (!fix || fix.error) {
       if (fix && fix.error === "denied") {
         if (btn) render();
-        return sheet("<h3>Location is off</h3><p>Open the iPhone <b>Settings → Privacy &amp; Security → Location Services → Safari Websites</b> and choose <b>While Using the App</b>, then try again.</p>");
+        return sheet("<h3>Location is off</h3><p>Open the iPhone <b>Settings → Privacy &amp; Security → Location Services</b>, pick the browser you added the journal from (<b>Safari Websites</b>, <b>Edge</b>, <b>Chrome</b>…) and choose <b>While Using the App</b>, then try again.</p>");
       }
       var last = Store.recentGoodFix(30 * 60e3, 1000);
       if (!last) {
@@ -397,7 +397,7 @@
     var dayN = first && first <= date && (!t.endDate || date <= t.endDate) ? Math.round((Store.dateObj(date) - Store.dateObj(first)) / 864e5) + 1 : null;
     var log = d.log || {};
     var banners = "";
-    if (!isInstalled()) banners += '<div class="card warn"><b>Add this to your Home Screen first.</b> In Safari tap <b>Share</b> <span class="ios-share"></span> then <b>Add to Home Screen</b>, and open it from there. Otherwise Safari may clear the journal after a week of not using it.</div>';
+    if (!isInstalled()) banners += '<div class="card warn"><b>Add this to your Home Screen first.</b> In your browser tap <b>Share</b> <span class="ios-share"></span> then <b>Add to Home Screen</b>, and open it from there. Otherwise Safari may clear the journal after a week of not using it.</div>';
     if (storageLevel === "CRITICAL") banners += '<div class="card warn"><b>The phone is almost full.</b> New photos are paused until you free some space.</div>';
     else if (storageLevel === "LOW") banners += '<div class="card warn">Under 1 GB left for the journal. Consider a backup and freeing space.</div>';
     var nPhotos = Store.values(Store.ALL.photos).length;
