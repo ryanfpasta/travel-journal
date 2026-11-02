@@ -1,9 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72">
-<rect x="0" y="0" width="108" height="108" fill="#B3261E"/>
-<path fill="#FFD54F" d="M35.44,60.66 L38.17,65.38 L43.50,64.25 L39.85,68.30 L42.57,73.02 L37.60,70.80 L33.95,74.85 L34.52,69.43 L29.54,67.22 L34.87,66.08 Z"/>
-<path fill="#FFD54F" d="M54.00,62.00 L56.25,68.91 L63.51,68.91 L57.63,73.18 L59.88,80.09 L54.00,75.82 L48.12,80.09 L50.37,73.18 L44.49,68.91 L51.75,68.91 Z"/>
-<path fill="#FFD54F" d="M72.56,60.66 L73.13,66.08 L78.46,67.22 L73.48,69.43 L74.05,74.85 L70.40,70.80 L65.43,73.02 L68.15,68.30 L64.50,64.25 L69.83,65.38 Z"/>
-<g transform="translate(54 39) rotate(35) scale(1.55)">
-<path fill="#FFFFFF" d="M0,-12 C1.2,-12 1.8,-10.5 1.8,-9 L1.8,-2 L12,4 L12,6.5 L1.8,3.5 L1.8,8.5 L4.5,10.5 L4.5,12.5 L0,11.2 L-4.5,12.5 L-4.5,10.5 L-1.8,8.5 L-1.8,3.5 L-12,6.5 L-12,4 L-1.8,-2 L-1.8,-9 C-1.8,-10.5 -1.2,-12 0,-12 Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1e88e5"/><stop offset="1" stop-color="#0d47a1"/></linearGradient>
+<radialGradient id="globe" cx=".38" cy=".35" r=".75"><stop offset="0" stop-color="#4fc3f7"/><stop offset="1" stop-color="#0277bd"/></radialGradient>
+<clipPath id="c"><circle cx="48" cy="54" r="27"/></clipPath>
+</defs>
+<rect width="100" height="100" fill="url(#bg)"/>
+<circle cx="48" cy="54" r="27" fill="url(#globe)"/>
+<g clip-path="url(#c)" fill="#8bc34a">
+<path d="M30 36 C36 30 46 31 49 36 C52 41 46 44 42 47 C39 50 41 55 37 58 C33 61 27 57 25 51 C23 45 25 40 30 36 Z"/>
+<path d="M53 44 C58 41 66 43 70 48 C74 54 71 60 66 62 C62 64 60 70 55 72 C51 74 49 68 51 63 C53 58 49 55 50 50 C50 47 51 45 53 44 Z"/>
+<path d="M36 70 C40 68 45 70 45 74 C45 78 39 80 35 78 C32 76 33 72 36 70 Z"/>
+</g>
+<g clip-path="url(#c)" fill="none" stroke="#ffffff" stroke-opacity=".35" stroke-width="1.2">
+<ellipse cx="48" cy="54" rx="12" ry="27"/><line x1="48" y1="27" x2="48" y2="81"/>
+<line x1="21" y1="54" x2="75" y2="54"/><path d="M23 43 Q48 49 73 43"/><path d="M23 65 Q48 59 73 65"/>
+</g>
+<circle cx="48" cy="54" r="27" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1.2"/>
+<path d="M16 68 C11 46 30 22 57 21" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"/>
+<g transform="translate(68 23) rotate(80) scale(1.1)">
+<path fill="#ffffff" d="M0,-12 C1.2,-12 1.8,-10.5 1.8,-9 L1.8,-2 L12,4 L12,6.5 L1.8,3.5 L1.8,8.5 L4.5,10.5 L4.5,12.5 L0,11.2 L-4.5,12.5 L-4.5,10.5 L-1.8,8.5 L-1.8,3.5 L-12,6.5 L-12,4 L-1.8,-2 L-1.8,-9 C-1.8,-10.5 -1.2,-12 0,-12 Z"/>
 </g>
 </svg>
