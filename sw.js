@@ -1,13 +1,13 @@
 // Offline support. The app's own files are cached on install, so the journal opens with no signal.
 // Bump VERSION on every release; the app offers the update and the journal data is untouched.
-var VERSION = "1.2.2";
+var VERSION = "1.2.3";
 var APP_CACHE = "journal-app-" + VERSION;
 var TILE_CACHE = "journal-tiles";
 var MAX_TILES = 20000; // about 400 MB at most; saved areas need room
 var FILES = [
   "./", "index.html", "style.css", "manifest.webmanifest",
   "js/zip.js", "js/exif.js", "js/store.js", "js/photos.js", "js/app.js",
-  "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png",
+  "icons/icon.svg", "icons/icon-32.png", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png",
   "memorybox/index.html", "memorybox/app.js", "memorybox/style.css",
   "memorybox/lib/leaflet.css", "memorybox/lib/leaflet.js", "memorybox/lib/topojson-client.min.js", "memorybox/lib/world.js",
   "memorybox/lib/images/layers.png", "memorybox/lib/images/layers-2x.png", "memorybox/lib/images/marker-icon.png",
