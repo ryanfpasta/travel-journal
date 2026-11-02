@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Travel Journal</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Journal">
+<meta name="theme-color" content="#b3261e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="memorybox/lib/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<button id="updateBar" hidden>A new version is ready. Tap to update (your journal stays).</button>
+<main id="view"><div class="page"><p class="muted">Opening the journal…</p></div></main>
+<nav id="tabs">
+  <a href="#/today" data-tab="today"><span>🏠</span>Today</a>
+  <a href="#/timeline" data-tab="timeline"><span>📖</span>Timeline</a>
+  <a href="#/calendar" data-tab="calendar"><span>📅</span>Calendar</a>
+  <a href="#/map" data-tab="map"><span>🗺️</span>Map</a>
+  <a href="#/more" data-tab="more"><span>⚙️</span>More</a>
+</nav>
+<div id="sheet" hidden></div>
+<div id="toast" hidden></div>
+<input type="file" id="cameraInput" accept="image/*,video/*" capture="environment" hidden>
+<input type="file" id="libraryInput" accept="image/*,video/*" multiple hidden>
+<input type="file" id="restoreInput" accept=".zip,application/zip" hidden>
+<script>var APP_VERSION = "1.1.0";</script>
+<script src="memorybox/lib/leaflet.js"></script>
+<script src="memorybox/lib/topojson-client.min.js"></script>
+<script src="memorybox/lib/world.js"></script>
+<script src="js/zip.js"></script>
+<script src="js/exif.js"></script>
+<script src="js/store.js"></script>
+<script src="js/photos.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
