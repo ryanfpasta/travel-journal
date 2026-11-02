@@ -246,9 +246,22 @@
     if (storageLevel === "CRITICAL") return toast("The phone is almost full, so new photos are paused. Free some space first.", 6000);
     pickTarget = { date: date || null, placeId: placeId || null };
     askPersist();
-    $("#cameraInput").value = "";
-    $("#cameraInput").click();
+    var input = $(takePhoto.video ? "#videoInput" : "#cameraInput");
+    takePhoto.video = false;
+    input.value = "";
+    input.click();
   }
+  function takeVideo(date, placeId) { takePhoto.video = true; takePhoto(date, placeId); }
+
+  function cameraHelp() {
+    sheet("<h3>Camera shows a black screen?</h3>" +
+      "<p>The journal uses the iPhone's own camera. A black screen usually means iOS has blocked the camera for websites:</p>" +
+      "<ol><li>Open <b>Settings → Apps → Safari → Camera</b> (older iPhones: <b>Settings → Safari → Camera</b>) and choose <b>Allow</b> or <b>Ask</b>.</li>" +
+      "<li>If that's already on, check <b>Settings → Screen Time → Content &amp; Privacy Restrictions → Allowed Apps</b> and make sure <b>Camera</b> is on.</li>" +
+      "<li>Swipe the journal away in the app switcher, open it again from the Home Screen icon, and try again.</li></ol>" +
+      "<p><b>Always works:</b> take the picture with the normal Camera app, then tap <b>Add from library</b> here. The photo keeps its time and location.</p>");
+  }
+
   function importPhotos(date, placeId) {
     if (storageLevel === "CRITICAL") return toast("The phone is almost full, so new photos are paused. Free some space first.", 6000);
     pickTarget = { date: date || null, placeId: placeId || null };
@@ -336,7 +349,9 @@
       tripPill() +
       "<h1>" + Store.prettyDay(date) + "</h1>" + (dayN ? '<div class="muted">Day ' + dayN + " of the trip</div>" : "") +
       banners +
-      '<div class="btnrow"><button class="btn primary big" id="takePhoto">📷 Photo / video</button><button class="btn tonal big" id="import">🖼️ Add from library</button></div>' +
+      '<div class="btnrow"><button class="btn primary big" id="takePhoto">📷 Take photo</button><button class="btn tonal big" id="takeVideo">🎥 Video</button></div>' +
+      '<button class="btn tonal wide" id="import">🖼️ Add photos or videos from library</button>' +
+      '<div class="center small"><a href="#" id="camHelp">Camera black or not opening?</a></div>' +
       '<button class="btn outline wide" id="sync">📍 Sync now: I\'m somewhere new</button>' +
       (cur ? '<div class="muted small center">You\'re at <a href="#/place/' + cur + '">' + esc(placeName(cur)) + "</a></div>" : "") +
       '<h2>Today</h2><div class="card">' +
@@ -352,6 +367,8 @@
   function bindToday(root) {
     var date = Store.today();
     $("#takePhoto", root).onclick = function () { takePhoto(null, null); };
+    $("#takeVideo", root).onclick = function () { takeVideo(null, null); };
+    $("#camHelp", root).onclick = function (e) { e.preventDefault(); cameraHelp(); };
     $("#import", root).onclick = function () { importPhotos(null, null); };
     $("#sync", root).onclick = function () { syncNow(this); };
     bindPickers(root, function () { return S.dayLogs.get(date) || {}; }, function (c) { Store.saveDayLog(date, c); });
@@ -832,6 +849,7 @@
     applyScheme();
     Store.onChange(onDataChanged);
     $("#cameraInput").onchange = function () { handleFiles(this.files, "CAMERA"); };
+    $("#videoInput").onchange = function () { handleFiles(this.files, "CAMERA"); };
     $("#libraryInput").onchange = function () { handleFiles(this.files, "IMPORT"); };
     $("#restoreInput").onchange = function () { doRestore(this.files[0]); };
     window.addEventListener("hashchange", function () { $("#sheet").hidden = true; render(); });
