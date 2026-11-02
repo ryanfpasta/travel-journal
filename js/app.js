@@ -253,13 +253,76 @@
   }
   function takeVideo(date, placeId) { takePhoto.video = true; takePhoto(date, placeId); }
 
+  // ---- Built-in camera ----
+  // A second way to take photos: a live preview inside the app (getUserMedia) instead of the iPhone's
+  // camera screen. Useful when the iPhone's camera screen opens black from a Home Screen web app.
+  var camStream = null, camFacing = "environment";
+  function stopCam() {
+    if (camStream) camStream.getTracks().forEach(function (t) { t.stop(); });
+    camStream = null;
+    var o = $("#camOverlay"); if (o) o.remove();
+  }
+  async function startCam(video) {
+    if (camStream) camStream.getTracks().forEach(function (t) { t.stop(); });
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: camFacing }, width: { ideal: 3840 }, height: { ideal: 2160 } }, audio: false });
+    video.srcObject = camStream;
+    await video.play();
+  }
+  async function builtInCamera(date, placeId) {
+    if (storageLevel === "CRITICAL") return toast("The phone is almost full, so new photos are paused. Free some space first.", 6000);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast("This browser has no built-in camera support. Use the Camera app, then Add from library.", 6000);
+    pickTarget = { date: date || null, placeId: placeId || null };
+    askPersist();
+    var o = document.createElement("div");
+    o.id = "camOverlay";
+    o.innerHTML = '<video id="camVideo" autoplay muted playsinline></video>' +
+      '<div class="cam-msg" id="camMsg">Starting the camera…</div>' +
+      '<div class="cam-bar"><button class="cam-btn" id="camClose" aria-label="Close">✕</button>' +
+      '<button class="cam-shutter" id="camShoot" aria-label="Take photo"></button>' +
+      '<button class="cam-btn" id="camFlip" aria-label="Switch camera">🔄</button></div>';
+    document.body.appendChild(o);
+    var video = $("#camVideo", o), shots = 0;
+    $("#camClose", o).onclick = stopCam;
+    async function begin() {
+      try { await startCam(video); $("#camMsg", o).hidden = true; }
+      catch (e) {
+        var denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+        $("#camMsg", o).innerHTML = denied
+          ? "The iPhone blocked the camera for this app.<br>Open <b>Settings → Apps → Safari → Camera</b>, choose <b>Allow</b>, then close and reopen the journal."
+          : "The camera couldn't start (" + esc(e && (e.name || e.message)) + ").<br>Use the Camera app, then Add from library.";
+      }
+    }
+    $("#camFlip", o).onclick = function () { camFacing = camFacing === "environment" ? "user" : "environment"; begin(); };
+    $("#camShoot", o).onclick = function () {
+      if (!video.videoWidth) return;
+      var c = document.createElement("canvas");
+      c.width = video.videoWidth; c.height = video.videoHeight;
+      c.getContext("2d").drawImage(video, 0, 0);
+      o.classList.add("flash"); setTimeout(function () { o.classList.remove("flash"); }, 150);
+      c.toBlob(function (b) {
+        c.width = c.height = 0;
+        if (!b) return toast("That photo couldn't be saved. Try again.");
+        shots++;
+        handleFiles([new File([b], "camera-" + Date.now() + ".jpg", { type: "image/jpeg", lastModified: Date.now() })], "CAMERA");
+      }, "image/jpeg", 0.9);
+    };
+    begin();
+    setTimeout(function () {
+      var m = $("#camMsg", o);
+      if (m && document.body.contains(o) && !video.videoWidth) { m.hidden = false; m.innerHTML = "Still black? Restart the iPhone and try again. Meanwhile, the Camera app plus <b>Add from library</b> always works."; }
+    }, 8000);
+  }
+
   function cameraHelp() {
     sheet("<h3>Camera shows a black screen?</h3>" +
-      "<p>The journal uses the iPhone's own camera. A black screen usually means iOS has blocked the camera for websites:</p>" +
+      "<p>Try the <b>built-in camera</b> first: it works differently from the iPhone's camera screen and often works when that one stays black.</p>" +
+      "<p>If both stay black:</p>" +
       "<ol><li>Open <b>Settings → Apps → Safari → Camera</b> (older iPhones: <b>Settings → Safari → Camera</b>) and choose <b>Allow</b> or <b>Ask</b>.</li>" +
       "<li>If that's already on, check <b>Settings → Screen Time → Content &amp; Privacy Restrictions → Allowed Apps</b> and make sure <b>Camera</b> is on.</li>" +
-      "<li>Swipe the journal away in the app switcher, open it again from the Home Screen icon, and try again.</li></ol>" +
-      "<p><b>Always works:</b> take the picture with the normal Camera app, then tap <b>Add from library</b> here. The photo keeps its time and location.</p>");
+      "<li>Swipe the journal away in the app switcher, open it again from the Home Screen icon, and try again.</li>" +
+      "<li>Restart the iPhone. iOS sometimes leaves the camera stuck for web apps until a restart.</li></ol>" +
+      "<p><b>Always works:</b> take the picture with the normal Camera app, then tap <b>Add from library</b> here. The photo keeps its time and location.</p>",
+      [{ label: "Close" }, { label: "📸 Built-in camera", cls: "primary", onClick: function () { builtInCamera(null, null); } }]);
   }
 
   function importPhotos(date, placeId) {
@@ -351,7 +414,7 @@
       banners +
       '<div class="btnrow"><button class="btn primary big" id="takePhoto">📷 Take photo</button><button class="btn tonal big" id="takeVideo">🎥 Video</button></div>' +
       '<button class="btn tonal wide" id="import">🖼️ Add photos or videos from library</button>' +
-      '<div class="center small"><a href="#" id="camHelp">Camera black or not opening?</a></div>' +
+      '<div class="center small"><a href="#" id="camBuiltIn">📸 Built-in camera</a> · <a href="#" id="camHelp">Camera black?</a></div>' +
       '<button class="btn outline wide" id="sync">📍 Sync now: I\'m somewhere new</button>' +
       (cur ? '<div class="muted small center">You\'re at <a href="#/place/' + cur + '">' + esc(placeName(cur)) + "</a></div>" : "") +
       '<h2>Today</h2><div class="card">' +
@@ -369,6 +432,7 @@
     $("#takePhoto", root).onclick = function () { takePhoto(null, null); };
     $("#takeVideo", root).onclick = function () { takeVideo(null, null); };
     $("#camHelp", root).onclick = function (e) { e.preventDefault(); cameraHelp(); };
+    $("#camBuiltIn", root).onclick = function (e) { e.preventDefault(); builtInCamera(null, null); };
     $("#import", root).onclick = function () { importPhotos(null, null); };
     $("#sync", root).onclick = function () { syncNow(this); };
     bindPickers(root, function () { return S.dayLogs.get(date) || {}; }, function (c) { Store.saveDayLog(date, c); });
@@ -896,9 +960,9 @@
     $("#videoInput").onchange = function () { handleFiles(this.files, "CAMERA"); };
     $("#libraryInput").onchange = function () { handleFiles(this.files, "IMPORT"); };
     $("#restoreInput").onchange = function () { doRestore(this.files[0]); };
-    window.addEventListener("hashchange", function () { $("#sheet").hidden = true; render(); });
+    window.addEventListener("hashchange", function () { $("#sheet").hidden = true; stopCam(); render(); });
     window.addEventListener("pagehide", flushAll);
-    document.addEventListener("visibilitychange", function () { if (document.hidden) flushAll(); else { maybeCheck(); checkStorage(); } });
+    document.addEventListener("visibilitychange", function () { if (document.hidden) { flushAll(); stopCam(); } else { maybeCheck(); checkStorage(); } });
     setInterval(maybeCheck, 60e3);
     await checkStorage();
     if (isInstalled()) askPersist();
