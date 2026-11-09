@@ -168,7 +168,8 @@ button:focus-visible, .cell:focus-visible, .thumb:focus-visible { outline: 2px s
 .leaflet-popup-content .gallery { grid-template-columns: repeat(3, 72px); gap: 6px; margin-top: 10px; }
 .leaflet-popup-content .gallery .thumb:first-child { grid-column: auto; grid-row: auto; aspect-ratio: 1; }
 .leaflet-popup-content .thumb { border-radius: 9px; }
-.leaflet-popup-content video { width: 230px; max-height: 300px; border-radius: 10px; display: block; margin-top: 8px; background: #000; }
+.leaflet-popup-content .thumb.more { display: flex; align-items: center; justify-content: center; background: var(--tint); color: var(--ink); font-weight: 700; font-size: 16px; cursor: pointer; }
+.leaflet-popup-scrolled { border: 0; overscroll-behavior: contain; }
 .leaflet-container a.leaflet-popup-close-button { top: 6px; right: 6px; color: var(--muted); }
 #mapNote { position: absolute; left: 14px; bottom: 14px; z-index: 600; max-width: calc(100% - 28px); background: color-mix(in srgb, var(--card) 92%, transparent); color: var(--muted); padding: 6px 12px; border-radius: 999px; font-size: 12.5px; box-shadow: var(--shadow-1); }
 

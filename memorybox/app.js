@@ -225,17 +225,21 @@
     return '<div class="thumb" data-media="' + m.index + '"><img src="' + m.thumb + '" alt="" loading="lazy">' +
       (m.type === "video" ? '<span class="play">' + iconSpan("play") + '</span><span class="dur">' + dur(m.durationMs) + "</span>" : "") + "</div>";
   }
+  var popGroups = [];
   function popupFor(title, sub, media, entries) {
-    var vids = media.filter(function (m) { return m.type === "video"; }), pics = media.filter(function (m) { return m.type === "photo"; });
+    media = media.slice().sort(function (a, b) { return a.utc - b.utc; });
+    var g = popGroups.push(media) - 1, shown = media.length > 9 ? media.slice(0, 8) : media;
     return "<div class='pop-title'>" + esc(title) + "</div>" + (sub ? "<div class='muted'>" + sub + "</div>" : "") +
       (entries || []).map(function (e) { return "<div class='entry'>" + esc(e.title || e.kind) + " " + stars(e.rating) + "</div>"; }).join("") +
-      (pics.length ? "<div class='gallery' style='margin-top:6px'>" + pics.slice(0, 9).map(thumbHtml).join("") + "</div>" : "") +
-      vids.slice(0, 2).map(function (m) { return "<video controls preload='metadata' src='" + m.src + "' poster='" + m.thumb + "'></video>"; }).join("");
+      (media.length ? "<div class='gallery'>" + shown.map(function (m) { return thumbHtml(m).replace("<div class=\"thumb\"", "<div class=\"thumb\" data-group=\"" + g + "\""); }).join("") +
+        (media.length > shown.length ? "<div class='thumb more' data-media='" + media[8].index + "' data-group='" + g + "'><span>+" + (media.length - 8) + "</span></div>" : "") + "</div>" : "");
   }
+  var POPUP = { maxWidth: 260, maxHeight: 340, autoPanPaddingTopLeft: [16, 16], autoPanPaddingBottomRight: [16, 16] };
 
   // One pin per place (with its kind-of-stop icon), plus one per photo or clip that isn't tied to a place.
   function drawPins(date) {
     pins.clearLayers();
+    popGroups = [];
     var pts = [];
     T.places.forEach(function (p) {
       var media = (mediaByPlace[p.id] || []).filter(function (m) { return !date || m.date === date; });
@@ -243,14 +247,14 @@
       if (!onDay) return;
       var entries = T.entries.filter(function (e) { return e.placeId === p.id && (!date || e.date === date); });
       L.marker([p.lat, p.lon], { icon: pinIcon(p.stop || (entries[0] && entries[0].stop)) })
-        .bindPopup(popupFor(niceName(p) || "Place", esc(p.city) + " " + stars(p.rating) + " " + mood(p.mood), media, entries), { maxWidth: 260 })
+        .bindPopup(popupFor(niceName(p) || "Place", esc(p.city) + " " + stars(p.rating) + " " + mood(p.mood), media, entries), POPUP)
         .addTo(pins);
       pts.push([p.lat, p.lon]);
     });
     T.photos.forEach(function (m) {
       if (m.placeId && placesById[m.placeId]) return;
       if (m.plat == null || (date && m.date !== date)) return;
-      L.marker([m.plat, m.plon], { icon: pinIcon(m.stop) }).bindPopup(popupFor(m.caption || (m.type === "video" ? "Clip" : "Photo"), esc(m.date + " " + m.time), [m]), { maxWidth: 260 }).addTo(pins);
+      L.marker([m.plat, m.plon], { icon: pinIcon(m.stop) }).bindPopup(popupFor(m.caption || (m.type === "video" ? "Clip" : "Photo"), esc(m.date + " " + m.time), [m]), POPUP).addTo(pins);
       pts.push([m.plat, m.plon]);
     });
     return pts;
@@ -328,11 +332,17 @@
 
   // ---- Lightbox: same full-screen viewer everywhere, mouse-wheel and pinch zoom, clips play ----
   var lb = document.getElementById("lightbox"), stage = lb.querySelector(".stage"), cap = lb.querySelector(".caption");
-  var list = T.photos.slice().sort(function (a, b) { return a.utc - b.utc; }), cur = -1;
+  var allMedia = T.photos.slice().sort(function (a, b) { return a.utc - b.utc; }), list = allMedia, cur = -1;
   var z = { s: 1, x: 0, y: 0 }, imgEl = null;
   function applyZoom() { if (imgEl) imgEl.style.transform = "translate(" + z.x + "px," + z.y + "px) scale(" + z.s + ")"; }
   function resetZoom() { z = { s: 1, x: 0, y: 0 }; applyZoom(); }
-  function openMedia(m) { cur = list.indexOf(m); showCur(); lb.hidden = false; }
+  /** Opens the viewer on one photo; group (a pin's photos) limits Previous / Next to that place. */
+  function openMedia(m, group) {
+    list = group && group.indexOf(m) >= 0 ? group : allMedia;
+    cur = list.indexOf(m);
+    if (map) map.closePopup();
+    showCur(); lb.hidden = false;
+  }
   function showCur() {
     var m = list[cur]; if (!m) return;
     stage.innerHTML = "";
@@ -344,6 +354,7 @@
       resetZoom();
     }
     var place = placesById[m.placeId];
+    lb.querySelector(".prev").hidden = cur <= 0; lb.querySelector(".next").hidden = cur >= list.length - 1;
     cap.innerHTML = esc([m.caption, niceName(place), (dayByDate[m.date] ? dayByDate[m.date].label : m.date) + ", " + m.time].filter(Boolean).join(" · ")) + "<span class='count'>" + (cur + 1) + " / " + list.length + "</span>";
   }
   function zoomAt(cx, cy, factor) {
@@ -388,7 +399,7 @@
   });
   document.addEventListener("click", function (e) {
     var t = e.target.closest && e.target.closest("[data-media]");
-    if (t) { e.preventDefault(); openMedia(T.photos[+t.dataset.media]); }
+    if (t) { e.preventDefault(); openMedia(T.photos[+t.dataset.media], t.dataset.group != null ? popGroups[+t.dataset.group] : null); }
   });
 
   var collageBtn = document.getElementById("collageBtn");
