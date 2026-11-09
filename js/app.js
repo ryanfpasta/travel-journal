@@ -47,22 +47,27 @@
   }
   function mapColour() { return isDark() ? scheme().d[0] : scheme().l[0]; }
   function tripName() { var t = Store.trip(); return t ? t.name : "My trip"; }
-  function tripPill() {
-    return '<button class="trip-pill" data-trips aria-label="Trip in use: ' + esc(tripName()) + '. Switch trip">' +
+  /** The trip in use, shown small above each main title. Tap to switch trips. */
+  function tripSub() {
+    return '<button class="trip-sub" data-trips aria-label="Trip in use: ' + esc(tripName()) + '. Switch trip">' + icon("luggage", false, "sm") +
       '<span class="label">' + esc(tripName()) + "</span>" + icon("keyboard_arrow_down", false, "sm") + "</button>";
   }
+  function gearBtn() { return '<a class="icon-btn" href="#/more" aria-label="Settings">' + icon("settings") + "</a>"; }
   /** Top app bar. Main tabs show a large title below it that collapses into the bar on scroll. */
   function appbar(title, opts) {
     opts = opts || {};
     return '<header class="appbar' + (opts.solid ? " solid" : "") + '">' +
-      (opts.back ? '<button class="back" data-back>' + icon("chevron_left") + esc(opts.backLabel || "Back") + "</button>" : "") +
+      (opts.back ? '<button class="back" data-back>' + icon("chevron_left") + esc(opts.backLabel || "Back") + "</button>" : "") + (opts.left || "") +
       '<div class="appbar-title">' + esc(title) + "</div>" + (opts.right || "") + "</header>";
   }
-  function mainHeader(title) { return appbar(title, { right: tripPill() }) + '<h1 class="large-title">' + esc(title) + "</h1>"; }
+  function mainHeader(title, opts) {
+    opts = opts || {};
+    return appbar(title, { left: tripSub(), right: (opts.right || "") + gearBtn() }) +
+      '<div class="title-block"><h1 class="large-title">' + (opts.titleHtml || esc(title)) + "</h1>" + (opts.sub || "") + "</div>";
+  }
   function emptyState(ic, line, btn) {
     return '<div class="empty"><div class="bubble">' + icon(ic) + "</div><p>" + line + "</p>" + (btn || "") + "</div>";
   }
-  function fab() { return '<button class="fab" id="fab" aria-label="Add a photo or video">' + icon("photo_camera") + '<span class="fab-label">Photo</span></button>'; }
   function notice(ic, html, cls, href, attrs) {
     var inner = icon(ic) + "<div>" + html + "</div>";
     return href ? '<a class="card notice ' + (cls || "") + '" href="' + href + '"' + (attrs || "") + ">" + inner + "</a>" : '<div class="card notice ' + (cls || "") + '">' + inner + "</div>";
@@ -79,9 +84,8 @@
       '<button class="action" data-a="photo"><span class="lead">' + icon("photo_camera") + '</span><div>Take a photo</div></button>' +
       '<button class="action" data-a="video"><span class="lead">' + icon("videocam") + '</span><div>Record a video</div></button>' +
       '<button class="action" data-a="library"><span class="lead">' + icon("photo_library") + '</span><div>Choose from library<span class="sub">Photos and videos, many at once</span></div></button>' +
-      '<button class="action" data-a="builtin"><span class="lead">' + icon("add_a_photo") + '</span><div>Built-in camera<span class="sub">Try this if the camera opens black</span></div></button>' +
       "</div>";
-    var sh = sheet(html, [{ label: "Camera trouble?", cls: "text", onClick: cameraHelp }, { label: "Cancel" }]);
+    var sh = sheet(html, [{ label: "Camera not working?", cls: "text", onClick: cameraHelp }, { label: "Cancel" }]);
     $$("[data-a]", sh.el).forEach(function (b) {
       b.onclick = function () {
         sh.close();
@@ -146,9 +150,12 @@
     });
   }
 
-  function toast(msg, ms) {
+  /** Short message at the bottom. action: { label, fn } adds a button such as Undo. */
+  function toast(msg, ms, action) {
     var t = $("#toast");
-    t.textContent = msg; t.hidden = false;
+    t.innerHTML = "<span>" + esc(msg) + "</span>" + (action ? '<button class="toast-act">' + esc(action.label) + "</button>" : "");
+    t.hidden = false;
+    if (action) $(".toast-act", t).onclick = function () { t.hidden = true; action.fn(); };
     clearTimeout(toast.timer);
     toast.timer = setTimeout(function () { t.hidden = true; }, ms || 3500);
   }
@@ -266,10 +273,14 @@
     });
   }
   function duration(ms) { return ms ? Math.floor(ms / 60000) + ":" + String(Math.round(ms / 1000) % 60).padStart(2, "0") : ""; }
-  function thumb(p) {
+  function thumb(p, opts) {
+    opts = opts || {};
     var vid = Photos.isVideo(p) ? '<span class="vbadge">' + icon("play_arrow", true) + duration(p.durationMs) + "</span>" : "";
-    var badge = vid + (p.locStatus === "APPROX" ? '<span class="badge" title="Approximate place">≈</span>' : p.locStatus === "NONE" ? '<span class="badge" title="No place">?</span>' : "");
-    return '<a href="#/photo/' + p.id + '" class="thumb" aria-label="' + (Photos.isVideo(p) ? "Video" : "Photo") + (p.caption ? ": " + esc(p.caption) : "") + '"><img data-photo="' + p.id + '" alt="">' + badge + "</a>";
+    var badge = vid + ((p.caption || "").trim() ? '<span class="cbadge" title="Has a comment">' + icon("chat_bubble", true) + "</span>" : "");
+    var on = opts.sel && opts.sel.has(p.id);
+    return '<a href="#/photo/' + p.id + '" class="thumb' + (on ? " sel" : "") + '" data-id="' + p.id + '" aria-label="' + (Photos.isVideo(p) ? "Video" : "Photo") + (p.caption ? ": " + esc(p.caption) : "") + '"' +
+      (opts.sel ? ' role="checkbox" aria-checked="' + !!on + '"' : "") + '><img data-photo="' + p.id + '" alt="">' + badge +
+      (opts.sel ? '<span class="tick">' + icon(on ? "check_circle" : "radio_button_unchecked", on) + "</span>" : "") + "</a>";
   }
   function thumbGrid(photos, cls) {
     if (!photos.length) return "";
@@ -485,7 +496,9 @@
     var dayN = first && first <= date && (!t.endDate || date <= t.endDate) ? Math.round((Store.dateObj(date) - Store.dateObj(first)) / 864e5) + 1 : null;
     var log = d.log || {};
     var banners = "";
-    if (!isInstalled()) banners += notice("add", "<b>Add to Home Screen</b> so the journal is kept safe. Tap <b>Share</b> <span class=\"ios-share\"></span> then <b>Add to Home Screen</b>.", "warn");
+    if (!isInstalled() && !Store.settings.installTipClosed)
+      banners += '<div class="card notice warn">' + icon("add") + "<div><b>Add to Home Screen</b> so the journal is kept safe. Tap <b>Share</b> <span class=\"ios-share\"></span> then <b>Add to Home Screen</b>.</div>" +
+        '<button class="icon-btn small" id="closeInstall" aria-label="Hide this tip">' + icon("close", false, "sm") + "</button></div>";
     if (storageLevel === "CRITICAL") banners += notice("warning", "<b>The phone is almost full.</b> New photos are paused until you free some space.", "warn");
     else if (storageLevel === "LOW") banners += notice("storage", "Under 1 GB left for the journal. Consider a backup and freeing space.", "warn");
     var tc = Store.tripCounts(t.id);
@@ -494,72 +507,77 @@
     else if (t.startDate && date < t.startDate) banners += notice("flight", esc(t.name) + " starts in " + plural(Math.round((Store.dateObj(t.startDate) - Store.dateObj(date)) / 864e5), "day") + ". Anything you add now still goes into this trip.");
     else if (t.endDate && date > t.endDate) banners += notice("luggage", esc(t.name) + " ended on " + Store.shortDay(t.endDate) + '. Starting somewhere new? <b>Tap to start a new trip</b> so today doesn\'t land in this one.', "warn", "#", " data-newtrip");
     var cur = Store.currentPlaceId();
+    var x = Store.dateObj(date);
+    var where = cur ? '<a href="#/place/' + cur + '">' + esc(placeName(cur)) + "</a>" : d.cities.length ? esc(d.cities.join(", ")) : "No place yet";
+    var photos = d.photos.slice().reverse();
+    var title = x.toLocaleDateString("en", { weekday: "long" }) + " " + x.getDate() + " " + x.toLocaleDateString("en", { month: "long" });
+    var meta = '<div class="today-meta">' + (dayN ? "<b>Day " + dayN + "</b><span>·</span>" : "") + icon("location_on", true, "sm") + "<span>" + where + "</span>" +
+      '<button class="link" id="sync">Update</button></div>';
+    return '<div class="page">' + mainHeader("Today", { titleHtml: esc(title), sub: meta }) +
+      banners +
+      '<div class="quick">' +
+      '<button class="btn primary big" id="takePhoto">' + icon("photo_camera") + "Take photo</button>" +
+      '<div class="quick-row">' +
+      '<button class="tile" id="addLib">' + icon("photo_library") + "<span>Library</span></button>" +
+      '<button class="tile" id="addVid">' + icon("videocam") + "<span>Video</span></button>" +
+      '<button class="tile" id="addNote">' + icon("edit_note") + "<span>Note</span></button></div></div>" +
+      '<div class="sec-head"><h2>' + (photos.length ? "Today’s photos <span class=\"count\">" + photos.length + "</span>" : "Today’s photos") + "</h2>" + (photos.length ? '<a href="#/day/' + date + '">See all</a>' : "") + "</div>" +
+      (photos.length ? thumbGrid(photos.slice(0, 12), "strip") : '<p class="muted soft">Nothing yet today. Photos you take land here.</p>') +
+      '<section class="card"><label class="card-title" for="todayNote">How was today?</label>' +
+      '<textarea id="todayNote" data-autosave="note" placeholder="A few words about today" rows="3">' + esc(log.note || "") + "</textarea>" +
+      '<div class="rate-row">' + moodPicker("mood", log.mood) + stars("rating", log.rating) + "</div></section>" +
+      (d.places.length ? '<div class="sec-head"><h2>Places today</h2></div>' + d.places.map(placeRow).join("") : "") +
+      (d.entries.length ? '<div class="sec-head"><h2>Notes today</h2></div>' + d.entries.map(entryRow).join("") : "") +
+      statusLine() + "</div>";
+  }
+  /** "Saved on this phone · backed up 2 days ago", amber when a backup is overdue. */
+  function statusLine() {
     var nAll = Store.values(Store.ALL.photos).length, lastB = Store.settings.lastBackupUtc || 0;
     var stale = nAll && Date.now() - lastB > 3 * 864e5;
-    var x = Store.dateObj(date);
-    var where = cur ? 'At <a href="#/place/' + cur + '">' + esc(placeName(cur)) + "</a>" : d.cities.length ? esc(d.cities.join(", ")) : "";
-    var photos = d.photos.slice().reverse();
-    return '<div class="page">' + mainHeader("Today") +
-      '<section class="hero" aria-label="Today">' +
-      '<div class="eyebrow">' + icon("flight", false, "sm") + (dayN ? "Day " + dayN + " of " + esc(t.name) : esc(t.name)) + "</div>" +
-      '<div class="date">' + x.toLocaleDateString("en", { weekday: "long" }) + ", " + x.getDate() + " " + x.toLocaleDateString("en", { month: "long" }) + "</div>" +
-      (where ? '<div class="where">' + icon("location_on", true, "sm") + where + "</div>" : '<div class="where">' + icon("location_off", false, "sm") + "No place yet today</div>") +
-      '<div class="pickers">' + moodPicker("mood", log.mood) + stars("rating", log.rating) + "</div></section>" +
-      banners +
-      '<div class="chips" role="toolbar" aria-label="Quick add">' +
-      '<button class="chip" data-new="NOTE">' + icon("edit_note") + "Note</button>" +
-      '<button class="chip" data-new="MEAL">' + icon("restaurant") + "Rate a meal</button>" +
-      '<button class="chip" data-new="EXPERIENCE">' + icon("star") + "Experience</button>" +
-      '<button class="chip" id="sync">' + icon("my_location") + "Sync now</button></div>" +
-      '<div class="card"><label class="lbl" for="todayNote" style="margin-top:0">How was today?</label>' +
-      '<textarea id="todayNote" data-autosave="note" placeholder="A few words about today" rows="3">' + esc(log.note || "") + "</textarea></div>" +
-      '<div class="sec-head"><h2>' + (photos.length ? plural(photos.length, "photo") + " today" : "Photos") + "</h2>" + (photos.length ? '<a href="#/day/' + date + '">See all</a>' : "") + "</div>" +
-      (photos.length ? thumbGrid(photos.slice(0, 12), "strip") : emptyState("add_a_photo", "No photos yet today.", '<button class="btn tonal" id="firstPhoto">' + icon("photo_camera") + "Take a photo</button>")) +
-      (d.places.length ? '<div class="sec-head"><h2>Places today</h2></div>' + d.places.map(placeRow).join("") : "") +
-      (d.entries.length ? '<div class="sec-head"><h2>Logged today</h2></div>' + d.entries.map(entryRow).join("") : "") +
-      '<div style="margin-top:20px"><a class="chip status' + (stale || (nAll && !lastB) ? " bad" : "") + '" href="#/more/backup">' + icon(stale ? "warning" : "backup", false) +
-      (nAll ? "Backed up " + ago(lastB) : "Nothing to back up yet") + "</a></div>" +
-      "</div>" + fab();
+    return '<a class="status-line' + (stale ? " bad" : "") + '" href="#/more/backup">' + icon(stale ? "warning" : "check_circle", !stale, "sm") +
+      "<span>Saved on this phone · " + (nAll ? (lastB ? "backed up " + ago(lastB) : "not backed up yet") : "nothing to back up yet") + "</span>" + icon("chevron_right", false, "sm") + "</a>";
   }
   function bindToday(root) {
     var date = Store.today();
-    $("#fab", root).onclick = function () { captureSheet(null, null); };
-    var fp = $("#firstPhoto", root); if (fp) fp.onclick = function () { captureSheet(null, null); };
+    $("#takePhoto", root).onclick = function () { takePhoto(null, null); };
+    $("#addLib", root).onclick = function () { importPhotos(null, null); };
+    $("#addVid", root).onclick = function () { takeVideo(null, null); };
+    $("#addNote", root).onclick = async function () { var e = await Store.newEntry("NOTE", date, Store.currentPlaceId()); go("#/entry/" + e.id); };
     $("#sync", root).onclick = function () { syncNow(this); };
+    var ci = $("#closeInstall", root); if (ci) ci.onclick = function () { Store.saveSettings({ installTipClosed: true }); toast("Tip hidden. It's under Settings → Storage and install."); };
     bindPickers(root, function () { return S.dayLogs.get(date) || {}; }, function (c) { Store.saveDayLog(date, c); });
     bindAutosave(root, function (c) { return Store.saveDayLog(date, c); });
-    $$("[data-new]", root).forEach(function (b) {
-      b.onclick = async function () { var e = await Store.newEntry(b.dataset.new, date, Store.currentPlaceId()); go("#/entry/" + e.id); };
-    });
   }
 
-  function dayHead(date, log) {
-    return '<div class="day-head"><b>' + Store.prettyDay(date) + '</b><span class="meta">' + starText(log.rating) + (log.mood ? " " + moodText(log.mood) : "") + "</span></div>";
-  }
   function dayCard(date) {
     var d = Store.day(date), log = d.log || {};
-    var bits = [d.photos.length ? plural(d.photos.length, "photo") : null, d.places.length ? plural(d.places.length, "place") : null, d.entries.length ? plural(d.entries.length, "entry").replace("entrys", "entries") : null].filter(Boolean).join(" · ");
+    var bits = [d.photos.length ? plural(d.photos.length, "photo") : null, d.places.length ? plural(d.places.length, "place") : null, d.entries.length ? plural(d.entries.length, "note") : null].filter(Boolean).join(" · ");
     var where = d.cities.length ? d.cities.join(", ") : d.places.slice(0, 3).map(function (p) { return p.name; }).join(", ");
-    return '<section class="day-sec">' + dayHead(date, log) +
-      '<a class="card day" href="#/day/' + date + '">' +
-      (where ? '<div class="where">' + icon("location_on", true, "sm") + esc(where) + "</div>" : "") +
+    var x = Store.dateObj(date);
+    return '<a class="card day" href="#/day/' + date + '">' +
+      '<div class="day-top"><div class="day-date"><b>' + x.getDate() + "</b><span>" + x.toLocaleDateString("en", { month: "short" }) + "</span></div>" +
+      '<div class="day-title"><b>' + x.toLocaleDateString("en", { weekday: "long" }) + "</b>" + (where ? '<span class="where">' + esc(where) + "</span>" : "") + "</div>" +
+      '<div class="day-mood">' + (log.mood ? moodText(log.mood) : "") + "</div></div>" +
       (log.note ? '<div class="note">' + esc(log.note.length > 160 ? log.note.slice(0, 160) + "…" : log.note) + "</div>" : "") +
-      thumbGrid(d.photos.slice(0, 8), "mini") +
-      d.entries.slice(0, 3).map(function (e) {
-        return '<div class="bits" style="display:flex;gap:8px;align-items:center;margin:4px 0">' + icon(KIND_ICON[e.kind] || "notes", false, "sm") + esc(e.title || KINDS[e.kind]) + " " + starText(e.rating) + (e.mood ? " " + moodText(e.mood) : "") + "</div>";
-      }).join("") +
-      '<div class="bits">' + bits + "</div></a></section>";
+      (d.photos.length ? '<div class="mini">' + d.photos.slice(0, 4).map(function (p) { return '<span class="thumb"><img data-photo="' + p.id + '" alt=""></span>'; }).join("") + "</div>" : "") +
+      '<div class="bits">' + bits + (log.rating ? " · " + starText(log.rating) : "") + "</div></a>";
   }
 
-  function viewTimeline() {
+  /** Journal: the days as a list, or as a calendar. */
+  function viewJournal(mode) {
+    var cal = mode === "calendar";
+    var seg = '<div class="seg" role="tablist" aria-label="Show as">' +
+      '<a role="tab" href="#/journal" class="' + (cal ? "" : "on") + '" aria-selected="' + !cal + '">' + icon("view_agenda", false, "sm") + "List</a>" +
+      '<a role="tab" href="#/journal/calendar" class="' + (cal ? "on" : "") + '" aria-selected="' + cal + '">' + icon("calendar_month", false, "sm") + "Calendar</a></div>";
     var dates = Store.allDates();
-    return '<div class="page">' + mainHeader("Timeline") + (dates.length ? dates.map(dayCard).join("") :
-      emptyState("view_timeline", "Your days show up here as you add photos and notes.", '<a class="btn tonal" href="#/today">Go to Today</a>')) + "</div>" + fab();
+    return '<div class="page">' + mainHeader("Journal") + seg +
+      (cal ? calendarHtml() : dates.length ? dates.map(dayCard).join("") :
+        emptyState("menu_book", "Your days show up here as you add photos and notes.", '<a class="btn tonal" href="#/today">Go to Today</a>')) + "</div>";
   }
-  function bindTimeline(root) { $("#fab", root).onclick = function () { captureSheet(null, null); }; }
+  function bindJournal(root, mode) { if (mode === "calendar") bindCalendar(root); }
 
   var calMonth = null;
-  function viewCalendar() {
+  function calendarHtml() {
     var trip = Store.trip(), td = Store.today();
     var t = Store.dateObj(trip.startDate && (td < trip.startDate || (trip.endDate && td > trip.endDate)) ? trip.startDate : td);
     if (!calMonth) calMonth = { y: t.getFullYear(), m: t.getMonth() };
@@ -575,11 +593,10 @@
         (log && log.mood ? "<i>" + MOODS[log.mood - 1] + "</i>" : has ? '<span class="dot"></span>' : "") + (has ? "</a>" : "</div>");
     }
     var label = first.toLocaleDateString("en", { month: "long", year: "numeric" });
-    return '<div class="page">' + mainHeader("Calendar") +
-      '<div class="card" style="padding:16px 12px"><div class="calhead"><button class="btn icon" id="prevM" aria-label="Previous month">' + icon("chevron_left") + "</button><h2>" + label +
+    return '<div class="card cal-card"><div class="calhead"><button class="btn icon" id="prevM" aria-label="Previous month">' + icon("chevron_left") + "</button><h2>" + label +
       '</h2><button class="btn icon" id="nextM" aria-label="Next month">' + icon("chevron_right") + "</button></div>" +
       '<div class="cal"><b>M</b><b>T</b><b>W</b><b>T</b><b>F</b><b>S</b><b>S</b>' + cells + "</div></div>" +
-      '<div class="cal-legend"><span><i style="background:var(--pc)"></i>Days with entries</span>' + (trip.startDate ? '<span><i style="background:var(--sc1);box-shadow:inset 0 0 0 1px var(--line)"></i>Trip days</span>' : "") + "</div></div>";
+      '<div class="cal-legend"><span><i class="has"></i>Days with entries</span>' + (trip.startDate ? '<span><i class="trip"></i>Trip days</span>' : "") + "</div>";
   }
   function bindCalendar(root) {
     $("#prevM", root).onclick = function () { calMonth.m--; if (calMonth.m < 0) { calMonth.m = 11; calMonth.y--; } render(true); };
@@ -594,20 +611,19 @@
       '<div class="field"><label>Rating</label>' + stars("rating", log.rating) + "</div>" +
       '<textarea data-autosave="note" placeholder="Notes about this day" rows="4" aria-label="Notes about this day">' + esc(log.note || "") + "</textarea></div>" +
       '<div class="chips" role="toolbar" aria-label="Add to this day">' +
+      '<button class="chip" id="dayAdd">' + icon("add_a_photo") + "Add photos</button>" +
       '<button class="chip" data-new="NOTE">' + icon("edit_note") + "Note</button>" +
-      '<button class="chip" data-new="MEAL">' + icon("restaurant") + "Rate a meal</button>" +
-      '<button class="chip" data-new="EXPERIENCE">' + icon("star") + "Experience</button>" +
       '<a class="chip" href="#/map/' + date + '">' + icon("map") + "Show on map</a></div>" +
       (d.photos.length ? '<div class="sec-head"><h2>' + plural(d.photos.length, "photo") + "</h2></div>" + thumbGrid(d.photos) : "") +
       (d.places.length ? '<div class="sec-head"><h2>Places</h2></div>' + d.places.map(placeRow).join("") : "") +
-      (d.entries.length ? '<div class="sec-head"><h2>Logged</h2></div>' + d.entries.map(entryRow).join("") : "") +
+      (d.entries.length ? '<div class="sec-head"><h2>Notes</h2></div>' + d.entries.map(entryRow).join("") : "") +
       (!d.photos.length && !d.places.length && !d.entries.length ? emptyState("calendar_today", "Nothing logged on this day yet.") : "") +
-      (d.points.length ? '<p class="muted small center">' + plural(d.points.length, "location reading") + " logged.</p>" : "") + "</div>" + fab();
+      (d.points.length ? '<p class="muted small center">' + plural(d.points.length, "location reading") + " logged.</p>" : "") + "</div>";
   }
   function bindDay(root, date) {
     bindPickers(root, function () { return S.dayLogs.get(date) || {}; }, function (c) { Store.saveDayLog(date, c); });
     bindAutosave(root, function (c) { return Store.saveDayLog(date, c); });
-    $("#fab", root).onclick = function () { captureSheet(date, null); };
+    $("#dayAdd", root).onclick = function () { captureSheet(date, null); };
     $$("[data-new]", root).forEach(function (b) {
       b.onclick = async function () { var e = await Store.newEntry(b.dataset.new, date, null); go("#/entry/" + e.id); };
     });
@@ -682,24 +698,311 @@
     $("#delEntry", root).onclick = function () { confirmSheet("Delete this entry?", "Delete", async function () { await Store.deleteEntry(id); history.back(); }); };
   }
 
+  // ---- Photos tab: every photo in the trip, grouped by day, with Select for clean-up ----
+
+  var sel = null;          // Set of selected ids while Select is on, else null
+  var photoCtx = null;     // { ids, filter } the list the viewer swipes through
+  var FILTERS = [["all", "All"], ["uncommented", "No comment yet"], ["hidden", "Hidden"], ["deleted", "Recently deleted"]];
+  function byTime(a, b) { return a.takenAtUtc - b.takenAtUtc; }
+  function hasComment(p) { return !!(p.caption || "").trim(); }
+  function photoList(filter) {
+    var all = Store.values(S.photos);
+    if (filter === "deleted") return all.filter(Store.trashed).sort(function (a, b) { return (b.deletedAtUtc || 0) - (a.deletedAtUtc || 0); });
+    if (filter === "hidden") return all.filter(function (p) { return p.status === "READY" && p.hidden; }).sort(byTime);
+    var l = all.filter(Store.live);
+    if (filter === "uncommented") l = l.filter(function (p) { return !hasComment(p); });
+    return l.sort(byTime);
+  }
+  function filterOf(arg) { return FILTERS.some(function (f) { return f[0] === arg; }) ? arg : "all"; }
+
+  function viewPhotos(arg) {
+    var filter = filterOf(arg), list = photoList(filter);
+    var counts = {}; FILTERS.forEach(function (f) { counts[f[0]] = f[0] === filter ? list.length : photoList(f[0]).length; });
+    var chips = '<div class="chips" role="tablist" aria-label="Show">' + FILTERS.filter(function (f) { return f[0] === "all" || f[0] === "uncommented" || counts[f[0]] || f[0] === filter; }).map(function (f) {
+      return '<a role="tab" class="chip' + (f[0] === filter ? " on" : "") + '" href="#/photos/' + f[0] + '" aria-selected="' + (f[0] === filter) + '">' + f[1] + ' <span class="n">' + counts[f[0]] + "</span></a>";
+    }).join("") + "</div>";
+    var head = sel
+      ? '<header class="appbar solid selhead"><button class="btn text" id="selCancel">Cancel</button><div class="appbar-title" id="selCount">' + selLabel() + '</div><button class="btn text" id="selAll">Select all</button></header>'
+      : mainHeader("Photos", { right: list.length ? '<button class="btn text" id="selStart">Select</button>' : "" });
+    var intro = {
+      deleted: list.length ? notice("delete", "Photos here are removed for good " + Store.TRASH_DAYS + " days after you delete them. Select any you want back and tap <b>Restore</b>.", "plain") : "",
+      hidden: list.length ? notice("visibility_off", "Hidden photos stay in your backups but are left out of the journal, the map and the memory box.", "plain") : "",
+      uncommented: list.length ? notice("chat_bubble", "Open a photo and type under it. <b>Next</b> takes you straight to the next one without a comment.", "plain") : "",
+      all: "",
+    }[filter];
+    var groups = {}, order = [];
+    list.forEach(function (p) { var k = filter === "deleted" ? "" : p.localDate; if (!groups[k]) { groups[k] = []; order.push(k); } groups[k].push(p); });
+    if (filter !== "deleted") order.sort().reverse();
+    var body = order.map(function (k) {
+      var g = groups[k];
+      return '<section class="pgroup"><div class="pg-head"><b>' + (k ? Store.shortDay(k) : "Deleted") + '</b><span class="muted">' + g.length + "</span>" +
+        (sel ? '<button class="btn text sm" data-selday="' + k + '">Select day</button>' : "") + "</div>" +
+        '<div class="grid">' + g.map(function (p) { return thumb(p, { sel: sel }); }).join("") + "</div></section>";
+    }).join("");
+    var empty = {
+      all: emptyState("photo_library", "No photos in this trip yet.", '<a class="btn tonal" href="#/today">Take a photo</a>'),
+      uncommented: emptyState("check", "Every photo has a comment. Nice work!"),
+      hidden: emptyState("visibility", "No hidden photos."),
+      deleted: emptyState("delete", "Recently deleted is empty."),
+    }[filter];
+    var tools = !sel && filter === "all" && list.length > 1
+      ? '<button class="card notice link-card" id="review">' + icon("content_copy") + "<div><b>Clean up</b><br><span class=\"muted\">Find similar shots and blurry photos</span></div>" + icon("chevron_right", false, "chev") + "</button>" : "";
+    return '<div class="page photos-page" data-ctx>' + head + (sel ? "" : chips) + intro + tools + (list.length ? body : empty) +
+      (filter === "all" && list.length && !sel ? '<p class="muted small center">Deleting here never touches the copies in your iPhone’s Photos app.</p>' : "") +
+      (filter === "deleted" && list.length && !sel ? '<button class="btn danger-text wide" id="emptyBin">' + icon("delete_forever") + "Empty Recently deleted now</button>" : "") +
+      "</div>" + (sel ? selBar(filter) : "");
+  }
+  function selLabel() { var n = sel ? sel.size : 0; return n ? n + " selected" : "Select photos"; }
+  function selBar(filter) {
+    var b = filter === "deleted"
+      ? [["restore", "restore_from_trash", "Restore"], ["forever", "delete_forever", "Delete"]]
+      : [["comment", "chat_bubble", "Comment"], filter === "hidden" ? ["unhide", "visibility", "Unhide"] : ["hide", "visibility_off", "Hide"], ["share", "share", "Share"], ["trash", "delete", "Delete"]];
+    return '<div class="selbar" role="toolbar" aria-label="Selected photos">' + b.map(function (x) {
+      return '<button data-act="' + x[0] + '"' + (x[0] === "trash" || x[0] === "forever" ? ' class="danger"' : "") + ">" + icon(x[1]) + x[2] + "</button>";
+    }).join("") + "</div>";
+  }
+
+  function bindPhotos(root, arg) {
+    var filter = filterOf(arg);
+    function ids() { return Array.from(sel || []); }
+    function refreshSel() {
+      $$(".thumb[data-id]", root).forEach(function (a) {
+        var on = sel && sel.has(a.dataset.id);
+        a.classList.toggle("sel", !!on); a.setAttribute("aria-checked", !!on);
+        var t = $(".tick", a); if (t) t.innerHTML = icon(on ? "check_circle" : "radio_button_unchecked", on);
+      });
+      var c = $("#selCount"); if (c) c.textContent = selLabel();
+      $$(".selbar button").forEach(function (b) { b.disabled = !sel || !sel.size; });
+    }
+    function startSel(firstId) { sel = new Set(firstId ? [firstId] : []); render(true); }
+    function endSel() { sel = null; render(true); }
+    var st = $("#selStart", root); if (st) st.onclick = function () { startSel(null); };
+    var sc = $("#selCancel", root); if (sc) sc.onclick = endSel;
+    var sa = $("#selAll", root); if (sa) sa.onclick = function () {
+      var all = $$(".thumb[data-id]", root).map(function (a) { return a.dataset.id; });
+      sel = sel.size === all.length ? new Set() : new Set(all); refreshSel();
+    };
+    $$("[data-selday]", root).forEach(function (b) {
+      b.onclick = function () {
+        var g = $$(".thumb[data-id]", b.closest(".pgroup")).map(function (a) { return a.dataset.id; });
+        var allOn = g.every(function (id) { return sel.has(id); });
+        g.forEach(function (id) { if (allOn) sel.delete(id); else sel.add(id); });
+        refreshSel();
+      };
+    });
+    // Tap selects while Select is on; a long press starts it.
+    $$(".thumb[data-id]", root).forEach(function (a) {
+      var timer = null, longPressed = false;
+      a.addEventListener("click", function (e) {
+        if (longPressed) { e.preventDefault(); longPressed = false; return; }
+        if (!sel) return;
+        e.preventDefault();
+        var id = a.dataset.id; if (sel.has(id)) sel.delete(id); else sel.add(id);
+        refreshSel();
+      });
+      a.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+      a.addEventListener("pointerdown", function () {
+        if (sel) return;
+        longPressed = false;
+        timer = setTimeout(function () { longPressed = true; if (navigator.vibrate) navigator.vibrate(10); startSel(a.dataset.id); }, 450);
+      });
+      ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) { a.addEventListener(ev, function () { clearTimeout(timer); }); });
+    });
+    var rv = $("#review", root); if (rv) rv.onclick = function () { go("#/review"); };
+    var eb = $("#emptyBin", root); if (eb) eb.onclick = function () {
+      var all = photoList("deleted").map(function (p) { return p.id; });
+      confirmSheet("Remove " + plural(all.length, "photo") + " for good? This can't be undone.", "Delete for good", async function () { await Store.deletePhotosForever(all); toast("Recently deleted is empty."); });
+    };
+    $$(".selbar button").forEach(function (b) {
+      b.onclick = function () { photoAction(b.dataset.act, ids(), filter, endSel); };
+    });
+    refreshSel();
+  }
+
+  /** Runs one of the Select bar actions on a list of photo ids. Hide and delete can be undone. */
+  function photoAction(act, list, filter, done) {
+    if (!list.length) return;
+    var n = plural(list.length, "photo");
+    if (act === "trash") {
+      Store.trashPhotos(list).then(function () { done(); toast(n + " moved to Recently deleted.", 6000, { label: "Undo", fn: function () { Store.restorePhotos(list); } }); });
+    } else if (act === "hide") {
+      Store.hidePhotos(list, true).then(function () { done(); toast(n + " hidden from the journal.", 6000, { label: "Undo", fn: function () { Store.hidePhotos(list, false); } }); });
+    } else if (act === "unhide") {
+      Store.hidePhotos(list, false).then(function () { done(); toast(n + " back in the journal."); });
+    } else if (act === "restore") {
+      Store.restorePhotos(list).then(function () { done(); toast(n + " restored."); });
+    } else if (act === "forever") {
+      confirmSheet("Remove " + n + " for good? This can't be undone.", "Delete for good", function () { Store.deletePhotosForever(list).then(function () { done(); toast(n + " deleted."); }); });
+    } else if (act === "share") {
+      shareMany(list);
+    } else if (act === "comment") {
+      bulkComment(list, done);
+    }
+  }
+
+  function bulkComment(list, done) {
+    var rows = list.map(function (id) { return S.photos.get(id); }).filter(Boolean);
+    var withC = rows.filter(hasComment).length;
+    var html = "<h3>Comment on " + plural(rows.length, "photo") + "</h3>" +
+      '<textarea id="bulkText" rows="3" placeholder="For example: Dinner at the night market" aria-label="Comment"></textarea>' +
+      (withC ? '<div class="radio-list">' +
+        '<label><input type="radio" name="bulkMode" value="empty" checked><span>Only the ' + plural(rows.length - withC, "photo") + " without a comment</span></label>" +
+        '<label><input type="radio" name="bulkMode" value="all"><span>All ' + rows.length + ", replacing " + withC + " existing " + (withC === 1 ? "comment" : "comments") + "</span></label></div>" : "");
+    var sh = sheet(html, [{ label: "Cancel" }, { label: "Save", cls: "primary", keepOpen: true, onClick: function () {
+      var text = $("#bulkText").value.trim();
+      if (!text) { $("#bulkText").focus(); return; }
+      var m = $('input[name="bulkMode"]:checked'), mode = m ? m.value : "all";
+      var before = {}; rows.forEach(function (p) { before[p.id] = p.caption || ""; });
+      var target = rows.filter(function (p) { return mode === "all" || !hasComment(p); }).map(function (p) { return p.id; });
+      sh.close();
+      Store.updatePhotos(target, { caption: text }).then(function () {
+        done();
+        toast("Comment added to " + plural(target.length, "photo") + ".", 6000, { label: "Undo", fn: function () { Store.updatePhotos(target, function (p) { return { caption: before[p.id] }; }); } });
+      });
+    } }]);
+    setTimeout(function () { var t = $("#bulkText", sh.el); if (t) t.focus(); }, 50);
+  }
+
+  async function shareMany(list) {
+    if (!navigator.canShare) return toast("This browser can't share several photos at once. Open each photo and use Share.");
+    var files = [];
+    for (var id of list.slice(0, 20)) {
+      var p = S.photos.get(id), b = p && await Store.getBlob("full:" + p.fileName);
+      if (b) files.push(new File([b], safeName(tripName()) + "-" + p.localDate + "-" + p.id.slice(0, 6) + "." + p.fileName.split(".").pop(), { type: Photos.mimeOf(p.fileName) }));
+    }
+    if (!navigator.canShare({ files: files })) return toast("These can't be shared from here. Try fewer at a time.");
+    sheet("<h3>Share " + plural(files.length, "photo") + "</h3>" + (list.length > 20 ? '<p class="muted">The first 20 of ' + list.length + " (iPhone's limit for one go).</p>" : "") +
+      "<p>Choose <b>Save Images</b> to put them in Photos, or pick an app.</p>", [{ label: "Cancel" }, { label: "Share", cls: "primary", onClick: function () {
+        navigator.share({ files: files }).catch(function (e) { if (e.name !== "AbortError") toast("Sharing failed: " + e.message); });
+      } }]);
+  }
+
+  // ---- Clean up: similar shots and possibly blurry photos (suggestions only) ----
+
+  var looks = new Map(); // photo id -> { hash: [64 bits], sharp: number }
+  async function lookAt(p) {
+    if (looks.has(p.id)) return looks.get(p.id);
+    var b = await Photos.thumbBlob(p); if (!b) return null;
+    var img = await new Promise(function (res) { var u = URL.createObjectURL(b), i = new Image(); i.onload = function () { URL.revokeObjectURL(u); res(i); }; i.onerror = function () { URL.revokeObjectURL(u); res(null); }; i.src = u; });
+    if (!img) return null;
+    function grey(w, h) {
+      var c = document.createElement("canvas"); c.width = w; c.height = h;
+      var x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(img, 0, 0, w, h);
+      var d = x.getImageData(0, 0, w, h).data, out = new Float32Array(w * h);
+      for (var i = 0; i < w * h; i++) out[i] = d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114;
+      return out;
+    }
+    // Difference hash: does brightness rise or fall from each pixel to the next, on a 9 x 8 copy.
+    var g = grey(9, 8), hash = [];
+    for (var y = 0; y < 8; y++) for (var xx = 0; xx < 8; xx++) hash.push(g[y * 9 + xx] < g[y * 9 + xx + 1] ? 1 : 0);
+    // Sharpness: how much the edges vary (Laplacian), on a 96 x 96 copy.
+    var N = 96, q = grey(N, N), sum = 0, sum2 = 0, n = 0;
+    for (var yy = 1; yy < N - 1; yy++) for (var x2 = 1; x2 < N - 1; x2++) {
+      var i0 = yy * N + x2, lap = q[i0 - 1] + q[i0 + 1] + q[i0 - N] + q[i0 + N] - 4 * q[i0];
+      sum += lap; sum2 += lap * lap; n++;
+    }
+    var r = { hash: hash, sharp: sum2 / n - (sum / n) * (sum / n) };
+    looks.set(p.id, r);
+    return r;
+  }
+  function hamming(a, b) { var d = 0; for (var i = 0; i < 64; i++) if (a[i] !== b[i]) d++; return d; }
+
+  var reviewSel = new Set();
+  function viewReview() {
+    return '<div class="page">' + appbar("Clean up", { back: true, solid: true, backLabel: "Photos" }) +
+      '<p class="section-intro">Suggestions only: nothing is deleted unless you pick it. Tap the photos you don’t need, then Delete. They wait in Recently deleted for ' + Store.TRASH_DAYS + " days.</p>" +
+      '<div id="reviewBody"><p class="muted"><span class="spin"></span> Looking through your photos…</p></div></div>' +
+      '<div class="selbar" role="toolbar"><button id="revDelete" class="danger" disabled>' + icon("delete") + '<span id="revLabel">Delete</span></button></div>';
+  }
+  async function bindReview(root) {
+    reviewSel = new Set();
+    var list = photoList("all").filter(function (p) { return !Photos.isVideo(p); }), info = [];
+    for (var i = 0; i < list.length; i++) {
+      var r = null; try { r = await lookAt(list[i]); } catch (e) { }
+      if (r) info.push({ p: list[i], r: r });
+      var m = $("#reviewBody p"); if (m && i % 10 === 0) m.innerHTML = '<span class="spin"></span> Looking through your photos… ' + (i + 1) + " of " + list.length;
+      if (!root.isConnected) return;
+    }
+    // Similar: taken within 2 minutes of the previous shot and looking almost the same.
+    var groups = [], cur = null;
+    info.forEach(function (x, k) {
+      var prev = info[k - 1];
+      if (prev && x.p.takenAtUtc - prev.p.takenAtUtc < 120e3 && hamming(x.r.hash, prev.r.hash) <= 12) { if (!cur) { cur = [prev]; groups.push(cur); } cur.push(x); }
+      else cur = null;
+    });
+    // Possibly blurry: far less edge detail than this trip's typical photo.
+    var sharp = info.map(function (x) { return x.r.sharp; }).sort(function (a, b) { return a - b; });
+    var median = sharp[Math.floor(sharp.length / 2)] || 0;
+    var blurry = info.filter(function (x) { return x.r.sharp < Math.min(median * 0.3, 120); });
+    function strip(items) { return '<div class="grid">' + items.map(function (x) { return thumb(x.p, { sel: reviewSel }); }).join("") + "</div>"; }
+    var html = "";
+    if (groups.length) html += '<div class="sec-head"><h2>Similar shots <span class="count">' + groups.length + "</span></h2></div>" +
+      groups.map(function (g) { return '<div class="card review-group"><div class="muted small">' + plural(g.length, "photo") + " · " + Store.shortDay(g[0].p.localDate) + " " + Store.clock(g[0].p.takenAtUtc, g[0].p.tzId) + "</div>" + strip(g) + "</div>"; }).join("");
+    if (blurry.length) html += '<div class="sec-head"><h2>Possibly blurry <span class="count">' + blurry.length + "</span></h2></div>" + strip(blurry);
+    if (!html) html = emptyState("check", "No similar or blurry photos found. Your trip looks tidy!");
+    var body = $("#reviewBody", root); if (!body) return;
+    body.innerHTML = html;
+    hydrateThumbs(body);
+    function refresh() {
+      $$(".thumb[data-id]", body).forEach(function (a) {
+        var on = reviewSel.has(a.dataset.id);
+        a.classList.toggle("sel", on); a.setAttribute("aria-checked", on);
+        $(".tick", a).innerHTML = icon(on ? "check_circle" : "radio_button_unchecked", on);
+      });
+      $("#revDelete").disabled = !reviewSel.size;
+      $("#revLabel").textContent = reviewSel.size ? "Delete " + plural(reviewSel.size, "photo") : "Delete";
+    }
+    $$(".thumb[data-id]", body).forEach(function (a) {
+      a.onclick = function (e) { e.preventDefault(); var id = a.dataset.id; if (reviewSel.has(id)) reviewSel.delete(id); else reviewSel.add(id); refresh(); };
+    });
+    $("#revDelete").onclick = function () {
+      var ids = Array.from(reviewSel);
+      Store.trashPhotos(ids).then(function () {
+        toast(plural(ids.length, "photo") + " moved to Recently deleted.", 6000, { label: "Undo", fn: function () { Store.restorePhotos(ids); } });
+      });
+    };
+  }
+
+  // ---- Photo viewer ----
+
   var fullUrl = null;
   var LOC_TEXT = { GPS: "Location from GPS", APPROX: "Approximate location, borrowed from a nearby reading", MANUAL: "Place set by hand", NONE: "No location", WAITING: "Finding location…" };
+  /** The list the viewer moves through: the grid it was opened from, else the whole trip. */
+  function ctxIds(id) {
+    if (photoCtx && photoCtx.ids.indexOf(id) >= 0) return photoCtx.ids;
+    var p = S.photos.get(id);
+    var l = p && Store.trashed(p) ? photoList("deleted") : p && p.hidden ? photoList("hidden") : photoList("all");
+    return l.map(function (x) { return x.id; });
+  }
+  function nextUncommented(id) {
+    var l = photoList("all"), i = l.findIndex(function (p) { return p.id === id; });
+    for (var k = 1; k <= l.length; k++) { var p = l[(i + k + l.length) % l.length]; if (p.id !== id && !hasComment(p)) return p.id; }
+    return null;
+  }
   function viewPhoto(id) {
     var p = S.photos.get(id);
     if (!p) return '<div class="page">' + appbar("Photo", { back: true, solid: true }) + emptyState("image", "This photo was deleted.") + "</div>";
-    var vid = Photos.isVideo(p);
+    var vid = Photos.isVideo(p), list = ctxIds(id), pos = list.indexOf(id);
+    var gone = Store.trashed(p);
+    var state = gone ? '<div class="vstate">' + icon("delete", false, "sm") + "In Recently deleted</div>" : p.hidden ? '<div class="vstate">' + icon("visibility_off", false, "sm") + "Hidden from the journal</div>" : "";
+    var nextU = !gone && photoCtx && photoCtx.filter === "uncommented";
     return '<div class="viewer" id="viewer">' +
       '<div class="media" id="media">' + (vid ? '<video id="fullVid" controls playsinline preload="metadata"></video>' : '<img id="fullImg" alt="' + esc(p.caption || "Photo") + '">') + "</div>" +
       '<div class="top"><button class="back" data-back aria-label="Back">' + icon("chevron_left") + "</button>" +
-      '<div class="t"><b>' + esc(placeName(p.placeId) || "No place") + "</b>" + Store.prettyDay(p.localDate) + " · " + Store.clock(p.takenAtUtc, p.tzId) + "</div></div>" +
-      '<div class="bottom">' + (p.caption ? '<div class="caption">' + esc(p.caption) + "</div>" : "") +
-      '<div class="bar">' +
-      '<button id="sharePh">' + icon("share") + "Share</button>" +
-      '<button id="savePh">' + icon("download") + "Save</button>" +
-      '<button id="capPh">' + icon("edit") + "Caption</button>" +
-      '<button id="photoPlace">' + icon("location_on") + "Place</button>" +
-      '<button id="infoPh">' + icon("info") + "Details</button>" +
-      '<button id="delPh">' + icon("delete") + "Delete</button>" +
+      '<div class="t"><b>' + esc(placeName(p.placeId) || "No place") + "</b>" + Store.prettyDay(p.localDate) + " · " + Store.clock(p.takenAtUtc, p.tzId) + "</div>" +
+      (list.length > 1 && pos >= 0 ? '<div class="pos">' + (pos + 1) + " / " + list.length + "</div>" : "") + "</div>" +
+      (list.length > 1 ? '<button class="nav prev" data-step="-1" aria-label="Previous photo"' + (pos > 0 ? "" : " hidden") + ">" + icon("chevron_left") + "</button>" +
+        '<button class="nav next" data-step="1" aria-label="Next photo"' + (pos < list.length - 1 ? "" : " hidden") + ">" + icon("chevron_right") + "</button>" : "") +
+      '<div class="bottom">' + state +
+      (gone ? "" : '<div class="comment">' + icon("chat_bubble", false, "sm") +
+        '<textarea id="capText" data-autosave="caption" rows="1" placeholder="Add a comment…" aria-label="Comment">' + esc(p.caption || "") + "</textarea>" +
+        (nextU ? '<button class="next-u" id="nextU">Next' + icon("arrow_forward", false, "sm") + "</button>" : "") + "</div>") +
+      '<div class="bar">' + (gone
+        ? '<button id="restorePh">' + icon("restore_from_trash") + "Restore</button>" + '<button id="foreverPh">' + icon("delete_forever") + "Delete</button>"
+        : '<button id="sharePh">' + icon("share") + "Share</button>" +
+          '<button id="photoPlace">' + icon("location_on") + "Place</button>" +
+          '<button id="infoPh">' + icon("info") + "Details</button>" +
+          '<button id="delPh">' + icon("delete") + "Delete</button>") +
       "</div></div></div>";
   }
   function bindPhoto(root, id) {
@@ -710,9 +1013,30 @@
       fullUrl = URL.createObjectURL(b);
       var img = $("#fullImg") || $("#fullVid"); if (img) img.src = fullUrl;
     });
-    var viewer = $("#viewer", root);
-    // Tap the photo to hide or show the controls.
+    var viewer = $("#viewer", root), list = ctxIds(id), pos = list.indexOf(id);
+    function step(d) { var n = list[pos + d]; if (n) { flushAll(); location.replace("#/photo/" + n); } }
+    // Tap the photo to hide or show the controls; swipe left or right for the next one.
+    var sx = null, sy = null;
+    $("#media", root).addEventListener("touchstart", function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+    $("#media", root).addEventListener("touchend", function (e) {
+      if (sx == null) return;
+      var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = null;
+      if (Math.abs(dx) > 50 && Math.abs(dy) < 60) step(dx < 0 ? 1 : -1);
+    });
     $("#media", root).onclick = function (e) { if (e.target.tagName !== "VIDEO") viewer.classList.toggle("hide-ui"); };
+    $$("[data-step]", root).forEach(function (b) { b.onclick = function () { step(+b.dataset.step); }; });
+    var cap = $("#capText", root);
+    if (cap) {
+      bindAutosave(root, function (c) { return Store.updatePhoto(id, c); });
+      var grow = function () { cap.style.height = "auto"; cap.style.height = Math.min(cap.scrollHeight, 140) + "px"; };
+      cap.addEventListener("input", grow); setTimeout(grow, 0);
+    }
+    var nu = $("#nextU", root);
+    if (nu) nu.onclick = function () {
+      flushAll();
+      var n = nextUncommented(id);
+      if (n) location.replace("#/photo/" + n); else { toast("That was the last photo without a comment."); history.back(); }
+    };
     async function shareIt() {
       var cur = S.photos.get(id), b = await Store.getBlob("full:" + cur.fileName);
       var ext = cur.fileName.split(".").pop(), type = Photos.mimeOf(cur.fileName);
@@ -721,33 +1045,44 @@
         navigator.share({ files: [file] }).catch(function (e) { if (e.name !== "AbortError") toast("Sharing failed: " + e.message); });
       } else saveFile(b, file.name, type);
     }
-    $("#sharePh", root).onclick = shareIt;
-    $("#savePh", root).onclick = function () { toast("In the share sheet, choose “Save Image” (or “Save Video”).", 4000); shareIt(); };
-    $("#capPh", root).onclick = function () {
+    function on(sel, fn) { var el = $(sel, root); if (el) el.onclick = fn; }
+    function leave() { var n = list[pos + 1] || list[pos - 1]; if (n) location.replace("#/photo/" + n); else history.back(); }
+    on("#sharePh", shareIt);
+    on("#infoPh", function () {
       var cur = S.photos.get(id);
-      var sh = sheet('<h3>Caption</h3><textarea id="capText" rows="3" placeholder="Add a caption" aria-label="Caption">' + esc(cur.caption || "") + "</textarea>",
-        [{ label: "Cancel" }, { label: "Save", cls: "primary", onClick: function () {
-          Store.updatePhoto(id, { caption: $("#capText").value }).then(function () { render(true); toast("Caption saved."); });
-        } }]);
-      setTimeout(function () { var t = $("#capText", sh.el); if (t) t.focus(); }, 50);
-    };
-    $("#infoPh", root).onclick = function () {
-      var cur = S.photos.get(id);
-      sheet("<h3>Details</h3>" +
+      var sh = sheet("<h3>Details</h3>" +
         '<p><b>' + Store.prettyDay(cur.localDate) + "</b> at " + Store.clock(cur.takenAtUtc, cur.tzId) + "</p>" +
         "<p>" + esc(LOC_TEXT[cur.locStatus] || "") + (cur.accuracyM && cur.locStatus === "GPS" ? " (±" + Math.round(cur.accuracyM) + " m)" : "") + "</p>" +
-        (cur.lat != null ? '<p><a href="https://maps.apple.com/?ll=' + cur.lat + "," + cur.lon + '" target="_blank" rel="noopener">Open in Maps</a></p>' : "") +
-        '<p><a href="#/day/' + cur.localDate + '">Go to this day</a></p>');
-    };
-    $("#photoPlace", root).onclick = function () {
+        (cur.lat != null ? '<p><a href="https://maps.apple.com/?ll=' + cur.lat + "," + cur.lon + '" target="_blank" rel="noopener">Open in Maps</a> · ' : "<p>") + '<a href="#/day/' + cur.localDate + '">Go to this day</a></p>' +
+        '<div class="actions">' +
+        '<button class="action" data-a="save"><span class="lead">' + icon("download") + "</span><div>Save to Photos<span class=\"sub\">In the share sheet, choose Save Image</span></div></button>" +
+        '<button class="action" data-a="hide"><span class="lead">' + icon(cur.hidden ? "visibility" : "visibility_off") + "</span><div>" + (cur.hidden ? "Show in the journal again" : "Hide from the journal") +
+        '<span class="sub">' + (cur.hidden ? "Back on the map, in the day and in the memory box" : "Kept in backups, left out of the journal and memory box") + "</span></div></button></div>", [{ label: "Close" }]);
+      $$("[data-a]", sh.el).forEach(function (b) {
+        b.onclick = function () {
+          sh.close();
+          if (b.dataset.a === "save") shareIt();
+          else { var h = !cur.hidden; Store.hidePhotos([id], h).then(function () { render(true); toast(h ? "Hidden from the journal." : "Back in the journal."); }); }
+        };
+      });
+    });
+    on("#photoPlace", function () {
       var cur = S.photos.get(id);
       pickPlace(cur.lat != null ? cur : null, function (place) {
         var change = place ? { placeId: place.id, placeLocked: true, lat: cur.lat != null ? cur.lat : place.lat, lon: cur.lon != null ? cur.lon : place.lon, locStatus: cur.lat != null ? cur.locStatus : "MANUAL" }
           : { placeId: null, placeLocked: false };
         Store.updatePhoto(id, change).then(function () { render(true); });
       }, true);
-    };
-    $("#delPh", root).onclick = function () { confirmSheet(Photos.isVideo(p) ? "Delete this video from the journal?" : "Delete this photo from the journal?", "Delete", async function () { await Store.deletePhoto(id); history.back(); }); };
+    });
+    on("#delPh", function () {
+      flushAll();
+      Store.trashPhotos([id]).then(function () {
+        toast((Photos.isVideo(p) ? "Video" : "Photo") + " moved to Recently deleted.", 6000, { label: "Undo", fn: function () { Store.restorePhotos([id]); } });
+        leave();
+      });
+    });
+    on("#restorePh", function () { Store.restorePhotos([id]).then(function () { toast("Restored."); render(true); }); });
+    on("#foreverPh", function () { confirmSheet("Delete this for good? This can't be undone.", "Delete for good", function () { Store.deletePhotosForever([id]).then(leave); }); });
   }
 
   // ---- Map ----
@@ -849,14 +1184,16 @@
     if (section === "trip") return viewTripSetup();
     if (section === "about") return viewAbout();
     if (section === "backup") return viewBackup();
-    var st = Store.settings, trip = Store.trip(), nPh = Store.values(S.photos).length;
-    return '<div class="page">' + mainHeader("More") +
+    var st = Store.settings, trip = Store.trip(), nPh = photoList("all").length, nDel = photoList("deleted").length, nHid = photoList("hidden").length;
+    return '<div class="page">' + appbar("Settings", { back: true }) + '<h1 class="large-title">Settings</h1>' +
       group("Trip", [
         item("luggage", esc(trip.name), esc([tripDates(trip), SCHEMES[schemeKey()].name].filter(Boolean).join(" · ")), "", { href: "#/more/trip" }),
         item("swap_horiz", "Switch or start a trip", plural(Store.trips().length, "trip") + " on this phone", "data-trips"),
       ]) +
       group("Photos", [
         item("photo_library", "Save all to the Photos app", plural(nPh, "photo") + " in this trip, a batch at a time", 'id="saveAll"'),
+        item("delete", "Recently deleted", nDel ? plural(nDel, "photo") + ", removed for good after " + Store.TRASH_DAYS + " days" : "Empty", "", { href: "#/photos/deleted" }),
+        item("visibility_off", "Hidden photos", nHid ? plural(nHid, "photo") + " left out of the journal" : "None", "", { href: "#/photos/hidden" }),
         item("help", "Camera trouble?", "What to do if the camera opens black", 'id="camHelpRow"'),
       ]) +
       group("Backup", [
@@ -882,7 +1219,7 @@
 
   function viewTripSetup() {
     var trip = Store.trip();
-    return '<div class="page">' + appbar("Trip setup", { back: true, solid: true, backLabel: "More" }) +
+    return '<div class="page">' + appbar("Trip setup", { back: true, solid: true, backLabel: "Settings" }) +
       '<p class="section-intro">Everything that makes this trip its own. Photos, places and notes always go into the trip in use.</p>' +
       '<div class="card"><label class="lbl" for="tripName" style="margin-top:0">Name</label><input id="tripName" data-tripsave="name" value="' + esc(trip.name) + '" enterkeyhint="done">' +
       '<div class="two"><div><label class="lbl">First day</label><input type="date" data-tripdate="startDate" value="' + esc(trip.startDate) + '" aria-label="First day"></div>' +
@@ -895,7 +1232,7 @@
 
   function viewBackup() {
     var st = Store.settings;
-    return '<div class="page">' + appbar("Backup and restore", { back: true, solid: true, backLabel: "More" }) +
+    return '<div class="page">' + appbar("Backup and restore", { back: true, solid: true, backLabel: "Settings" }) +
       '<div class="card tonal notice">' + icon("backup") + "<div><b>Last backup " + ago(st.lastBackupUtc) + "</b><br>One zip with every trip, photo and note.</div></div>" +
       '<button class="btn primary wide" id="backup">' + icon("backup") + "Back up now</button>" +
       '<p class="muted small">Choose <b>Save to Files</b> (iCloud Drive is safest) or AirDrop it to a computer.</p>' +
@@ -907,7 +1244,7 @@
   }
 
   function viewAbout() {
-    return '<div class="page">' + appbar("Storage and install", { back: true, solid: true, backLabel: "More" }) +
+    return '<div class="page">' + appbar("Storage and install", { back: true, solid: true, backLabel: "Settings" }) +
       '<div class="card" id="storageCard"><p class="muted">Checking…</p></div>' +
       '<p class="muted small center">Travel Journal · v' + APP_VERSION + "</p></div>";
   }
@@ -991,7 +1328,7 @@
 
   /** iPhone only saves to Photos from a share sheet opened by a tap, so this goes a batch at a time. */
   async function saveAllToPhotos() {
-    var photos = Store.values(S.photos).filter(function (p) { return p.status === "READY"; }).sort(function (a, b) { return a.takenAtUtc - b.takenAtUtc; });
+    var photos = photoList("all");
     if (!photos.length) return toast("No photos in this trip yet.");
     if (!navigator.canShare) return toast("This browser can't save to Photos. Open each photo and use Share / Save.");
     var BATCH = 20, i = 0;
@@ -1058,7 +1395,7 @@
         files.push({ name: "memory-box/" + f, data: await res.blob() });
       }
       var photos = [];
-      Store.values(S.photos).filter(function (p) { return p.status === "READY" && !Photos.isVideo(p); }).sort(function (a, b) { return a.takenAtUtc - b.takenAtUtc; }).forEach(function (p) { photos.push(p); });
+      Store.values(S.photos).filter(function (p) { return Store.live(p) && !Photos.isVideo(p); }).sort(function (a, b) { return a.takenAtUtc - b.takenAtUtc; }).forEach(function (p) { photos.push(p); });
       var have = [];
       for (var i = 0; i < photos.length; i++) {
         var p = photos[i], base = p.fileName.replace(/\.[^.]+$/, "");
@@ -1109,7 +1446,7 @@
     return { name: h[0] || "today", arg: h[1] ? decodeURIComponent(h[1]) : null };
   }
 
-  var TABS = [["today", "Today", "today"], ["timeline", "Timeline", "view_timeline"], ["calendar", "Calendar", "calendar_month"], ["map", "Map", "map"], ["more", "More", "more_horiz"]];
+  var TABS = [["today", "Today", "today"], ["journal", "Journal", "menu_book"], ["photos", "Photos", "photo_library"], ["map", "Map", "map"]];
   function renderTabs(active) {
     $("#tabs").innerHTML = TABS.map(function (t) {
       var on = t[0] === active;
@@ -1117,13 +1454,17 @@
     }).join("");
   }
 
-  // Large titles collapse into the top bar, and the Photo button shrinks while scrolling down.
-  var lastY = 0;
-  window.addEventListener("scroll", function () {
-    var y = window.scrollY;
-    document.body.classList.toggle("scrolled", y > 36);
-    if (Math.abs(y - lastY) > 6) { document.body.classList.toggle("fab-small", y > lastY && y > 80); lastY = y; }
-  }, { passive: true });
+  // Large titles collapse into the top bar while scrolling down.
+  window.addEventListener("scroll", function () { document.body.classList.toggle("scrolled", window.scrollY > 36); }, { passive: true });
+
+  // Opening a photo from a grid remembers that grid, so the viewer can swipe through the same photos.
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a.thumb[data-id]");
+    if (!a || sel) return;
+    var scope = a.closest("[data-ctx]") || a.parentNode;
+    var r = parse();
+    photoCtx = { ids: $$("a.thumb[data-id]", scope).map(function (x) { return x.dataset.id; }), filter: r.name === "photos" ? filterOf(r.arg) : null };
+  }, true);
 
   function render() {
     flushAll();
@@ -1131,8 +1472,12 @@
     var scroll = sameRoute ? window.scrollY : 0;
     if (map) { try { map.remove(); } catch (e) { console.warn(e); } map = null; }
     if (r.name !== "photo" && fullUrl) { URL.revokeObjectURL(fullUrl); fullUrl = null; }
+    // Older links (#/timeline, #/calendar) open the Journal.
+    if (r.name === "timeline") r = { name: "journal", arg: null };
+    if (r.name === "calendar") r = { name: "journal", arg: "calendar" };
+    if (r.name !== "photos") sel = null;
     var V = {
-      today: [viewToday, bindToday], timeline: [viewTimeline, bindTimeline], calendar: [viewCalendar, bindCalendar], map: [viewMap, bindMap],
+      today: [viewToday, bindToday], journal: [viewJournal, bindJournal], photos: [viewPhotos, bindPhotos], review: [viewReview, bindReview], map: [viewMap, bindMap],
       more: [viewMore, bindMore], day: [viewDay, bindDay], place: [viewPlace, bindPlace], entry: [viewEntry, bindEntry], photo: [viewPhoto, bindPhoto],
     }[r.name] || [viewToday, bindToday];
     // Leaving an entry that was never filled in removes it, so stray taps don't leave blank rows.
@@ -1143,18 +1488,21 @@
     currentRoute = key;
     view.classList.toggle("no-anim", sameRoute);
     if (!sameRoute) { view.style.animation = "none"; void view.offsetWidth; view.style.animation = ""; }
+    $$("body > .selbar").forEach(function (el) { el.remove(); });
     view.innerHTML = V[0](r.arg);
+    $$(".selbar", view).forEach(function (el) { document.body.appendChild(el); });
     if (V[1]) V[1](view, r.arg);
     hydrateThumbs(view);
     $$("[data-trips]", view).forEach(function (b) { b.onclick = function (e) { e.preventDefault(); tripSheet(); }; });
     $$("[data-newtrip]", view).forEach(function (b) { b.onclick = function (e) { e.preventDefault(); newTripSheet(); }; });
     $$("[data-back]", view).forEach(function (b) { b.onclick = function () { if (history.length > 1) history.back(); else go("#/today"); }; });
-    var tab = { day: "timeline", place: "map", entry: "today", photo: "timeline" }[r.name] || r.name;
-    if (!TABS.some(function (t) { return t[0] === tab; })) tab = "today";
+    var tab = { day: "journal", place: "map", entry: "today", photo: "photos", review: "photos", more: "" }[r.name];
+    if (tab == null) tab = r.name;
+    if (tab && !TABS.some(function (t) { return t[0] === tab; })) tab = "today";
     renderTabs(tab);
+    document.body.classList.toggle("select-mode", !!sel || r.name === "review");
     document.body.classList.toggle("map-mode", r.name === "map");
     document.body.classList.toggle("viewer-mode", r.name === "photo" && !!S.photos.get(r.arg));
-    if (!sameRoute) document.body.classList.remove("fab-small");
     window.scrollTo(0, scroll);
     document.body.classList.toggle("scrolled", window.scrollY > 36);
   }
@@ -1193,6 +1541,7 @@
     if (isInstalled()) askPersist();
     render();
     Store.fillMissingPhotoLocations();
+    Store.purgeOldTrash();
     setTimeout(maybeCheck, 1500);
   }
 

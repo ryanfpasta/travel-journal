@@ -20,9 +20,29 @@ restore brings everything across).
 ## Trips
 
 Each trip has its own name, dates, colour, days, places, photos, map and memory box. Tap the trip
-name at the top of Today, Timeline, Calendar or Map to switch or start one; **More** edits the trip in
+name at the top of any tab to switch or start one; the gear opens **Settings**, which edits the trip in
 use and has **Save all photos to the Photos app** (a batch of 20 per tap, which iOS requires).
 Journals from v1.0 become one trip on first start (database version 2).
+
+## Tabs (v1.4)
+
+**Today** (Take photo, Library, Video, Note, today's photos, "How was today?"), **Journal** (the days as
+a list or a calendar), **Photos** and **Map**. Settings sit behind the gear at the top right.
+
+## Photos tab: clean up and comments
+
+- Every photo in the trip, grouped by day. Filters: All, No comment yet, Hidden, Recently deleted.
+- **Select** (or long-press a photo) to Comment, Hide, Share or Delete several at once. Bulk comments
+  can fill only the photos without one, or replace them all. Hide and Delete show **Undo**.
+- **Recently deleted** keeps photos for 30 days (row `status: "DELETED"`, `deletedAtUtc`), then they
+  are removed for good on the next start. Restore or Delete for good from there.
+- **Hidden** photos (`hidden: true`) stay in backups but are left out of the day, map, memory box and
+  Save all. Hide one photo from the viewer's **Details**.
+- **Clean up** suggests similar shots (taken within 2 minutes, near-identical difference hash) and
+  possibly blurry photos (low edge detail on the thumbnail). Nothing is deleted unless you pick it.
+- The viewer has a comment box under the photo that saves as you type; from **No comment yet**,
+  **Next** jumps to the next photo without a comment. Swipe left or right for the next photo.
+- None of this touches the copies in the iPhone's own Photos app.
 
 ## Videos
 
