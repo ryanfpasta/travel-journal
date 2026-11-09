@@ -61,6 +61,12 @@ take longer). Only new map areas and app updates need internet.
 **More → Export memory box** makes the same zip as the Android app. Unzip it on a laptop and
 double-click `memory-box/index.html`.
 
+Since 1.3.1 the page uses the redesigned layout shared with the Android app (light page with a serif
+title, highlights strip, calendar, photo mosaic, stops timeline, map card and recap). It works with no
+internet: fonts are in `memorybox/fonts`, and the map is an outline map because the iPhone export does
+not bundle street tiles. `memorybox/app.js` fills in fields the iPhone export leaves out (regions come
+from each day's first city), so keep it identical to the Android copy.
+
 ## Releasing an update
 
 Edit the files, bump `VERSION` in `sw.js` and `APP_VERSION` in `index.html`, and publish to the same

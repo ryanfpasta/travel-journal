@@ -1044,7 +1044,8 @@
   }
 
   var MB_FILES = ["index.html", "app.js", "style.css", "lib/leaflet.css", "lib/leaflet.js", "lib/topojson-client.min.js", "lib/world.js",
-    "lib/images/layers.png", "lib/images/layers-2x.png", "lib/images/marker-icon.png", "lib/images/marker-icon-2x.png", "lib/images/marker-shadow.png"];
+    "lib/images/layers.png", "lib/images/layers-2x.png", "lib/images/marker-icon.png", "lib/images/marker-icon-2x.png", "lib/images/marker-shadow.png",
+    "fonts/dm-sans-latin-400-normal.woff2", "fonts/dm-sans-latin-500-normal.woff2", "fonts/dm-sans-latin-700-normal.woff2", "fonts/dm-serif-display-latin-400-normal.woff2", "fonts/OFL-DM-Sans.txt"];
 
   async function doExport() {
     var r = await runJob("Memory box", async function (progress) {
@@ -1070,16 +1071,22 @@
         if ((i + 1) % 5 === 0) progress("Photos " + (i + 1) + " of " + photos.length + "…");
       }
       var dates = Store.allDates().slice().reverse();
+      var sc = scheme().l, trip = Store.trip() || {};
       var data = {
         title: tripName(),
+        app: "Travel Journal",
         exportedAt: Store.prettyDay(Store.today()),
+        startDate: trip.startDate || dates[0], endDate: trip.endDate || dates[dates.length - 1],
+        // The exported page is always light; colours come from the trip's scheme (same roles as the Android export).
+        scheme: { header: sc[0], accent: sc[0], route: sc[0], ring: sc[0], page: sc[6], card: sc[7], ink: sc[12], muted: sc[13], line: sc[15],
+          sea: "#dfeef3", land: "#f4ece2", landEdge: "#c9b8aa", dark: false },
         days: dates.map(function (d) {
           var day = Store.day(d), log = day.log || {};
           return { date: d, label: Store.prettyDay(d), mood: log.mood || null, rating: log.rating || null, note: log.note || "", cities: day.cities, placeIds: day.places.map(function (x) { return x.id; }) };
         }),
         places: Store.values(S.places).map(function (p) { return { id: p.id, name: p.name, city: p.city, lat: p.lat, lon: p.lon, rating: p.rating, mood: p.mood, note: p.note, firstDate: p.firstLocalDate }; }),
         photos: have.map(function (p) {
-          return { id: p.id, src: "photos/" + p.fileName, thumb: "thumbs/" + p.fileName.replace(/\.[^.]+$/, "") + ".jpg", date: p.localDate, time: Store.clock(p.takenAtUtc, p.tzId),
+          return { id: p.id, type: "photo", src: "photos/" + p.fileName, thumb: "thumbs/" + p.fileName.replace(/\.[^.]+$/, "") + ".jpg", date: p.localDate, time: Store.clock(p.takenAtUtc, p.tzId),
             utc: p.takenAtUtc, lat: p.lat, lon: p.lon, placeId: p.placeId, caption: p.caption, approx: p.locStatus !== "GPS" };
         }),
         entries: Store.values(S.entries).map(function (e) { return { id: e.id, kind: KINDS[e.kind] || "Note", title: e.title, date: e.localDate, placeId: e.placeId, rating: e.rating, mood: e.mood, note: e.note }; }),

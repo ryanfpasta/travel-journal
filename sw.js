@@ -1,6 +1,6 @@
 // Offline support. The app's own files are cached on install, so the journal opens with no signal.
 // Bump VERSION on every release; the app offers the update and the journal data is untouched.
-var VERSION = "1.3.0";
+var VERSION = "1.3.1";
 var APP_CACHE = "journal-app-" + VERSION;
 var TILE_CACHE = "journal-tiles";
 var MAX_TILES = 20000; // about 400 MB at most; saved areas need room
@@ -13,6 +13,8 @@ var FILES = [
   "memorybox/lib/leaflet.css", "memorybox/lib/leaflet.js", "memorybox/lib/topojson-client.min.js", "memorybox/lib/world.js",
   "memorybox/lib/images/layers.png", "memorybox/lib/images/layers-2x.png", "memorybox/lib/images/marker-icon.png",
   "memorybox/lib/images/marker-icon-2x.png", "memorybox/lib/images/marker-shadow.png",
+  "memorybox/fonts/dm-sans-latin-400-normal.woff2", "memorybox/fonts/dm-sans-latin-500-normal.woff2", "memorybox/fonts/dm-sans-latin-700-normal.woff2",
+  "memorybox/fonts/dm-serif-display-latin-400-normal.woff2", "memorybox/fonts/OFL-DM-Sans.txt",
 ];
 
 self.addEventListener("install", function (e) {
