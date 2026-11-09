@@ -52,7 +52,44 @@
     return '<button class="trip-sub" data-trips aria-label="Trip in use: ' + esc(tripName()) + '. Switch trip">' + icon("luggage", false, "sm") +
       '<span class="label">' + esc(tripName()) + "</span>" + icon("keyboard_arrow_down", false, "sm") + "</button>";
   }
-  function gearBtn() { return '<a class="icon-btn" href="#/more" aria-label="Settings">' + icon("settings") + "</a>"; }
+  function menuBtn() { return '<button class="icon-btn menu-btn" data-menu aria-label="Menu">' + icon("menu") + "</button>"; }
+
+  /** The ☰ menu: trips, photo housekeeping, backup and settings, sliding in from the left. */
+  function openMenu() {
+    var t = Store.trip(), nDel = photoList("deleted").length, nHid = photoList("hidden").length;
+    function row(ic, label, sub, attrs) {
+      return '<button class="mrow" ' + attrs + ">" + icon(ic) + '<span class="b"><b>' + label + "</b>" + (sub ? "<span>" + sub + "</span>" : "") + "</span></button>";
+    }
+    var el = document.createElement("div");
+    el.id = "drawer";
+    el.innerHTML = '<nav class="drawer-card" aria-label="Menu">' +
+      '<div class="drawer-head"><span class="swatch" style="background:' + swatch(t.scheme) + '"></span><div><b>' + esc(t.name) + "</b><span>" + esc(tripDates(t) || "No dates yet") + "</span></div></div>" +
+      row("swap_horiz", "Switch or start a trip", plural(Store.trips().length, "trip") + " on this phone", 'data-go="trips"') +
+      row("luggage", "Trip setup", "Name, dates and colour", 'data-go="#/more/trip"') +
+      '<div class="mhead">Photos</div>' +
+      row("content_copy", "Clean up", "Similar and blurry photos", 'data-go="#/review"') +
+      row("delete", "Recently deleted", nDel ? plural(nDel, "photo") : "Empty", 'data-go="#/photos/deleted"') +
+      row("visibility_off", "Hidden photos", nHid ? plural(nHid, "photo") : "None", 'data-go="#/photos/hidden"') +
+      '<div class="mhead">Keep it safe</div>' +
+      row("backup", "Back up now", "Last backup " + ago(Store.settings.lastBackupUtc), 'data-go="backup"') +
+      row("redeem", "Export memory box", "A keepsake to open on a laptop", 'data-go="export"') +
+      '<div class="mhead">App</div>' +
+      row("settings", "Settings", "Location, storage, camera help", 'data-go="#/more"') +
+      '<p class="mver">Travel Journal ' + APP_VERSION + "</p></nav>";
+    document.body.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add("open"); });
+    function close() { el.classList.remove("open"); setTimeout(function () { el.remove(); }, 220); document.removeEventListener("keydown", onKey); }
+    function onKey(e) { if (e.key === "Escape") close(); }
+    document.addEventListener("keydown", onKey);
+    el.onclick = function (e) { if (e.target === el) close(); };
+    $$("[data-go]", el).forEach(function (b) {
+      b.onclick = function () {
+        var g = b.dataset.go; close();
+        if (g === "trips") tripSheet(); else if (g === "backup") doBackup(); else if (g === "export") doExport(); else go(g);
+      };
+    });
+    var first = $(".mrow", el); if (first) first.focus({ preventScroll: true });
+  }
   /** Top app bar. Main tabs show a large title below it that collapses into the bar on scroll. */
   function appbar(title, opts) {
     opts = opts || {};
@@ -62,7 +99,7 @@
   }
   function mainHeader(title, opts) {
     opts = opts || {};
-    return appbar(title, { left: tripSub(), right: (opts.right || "") + gearBtn() }) +
+    return appbar(title, { left: menuBtn() + tripSub(), right: opts.right || "" }) +
       '<div class="title-block"><h1 class="large-title">' + (opts.titleHtml || esc(title)) + "</h1>" + (opts.sub || "") + "</div>";
   }
   function emptyState(ic, line, btn) {
@@ -1090,7 +1127,8 @@
   var map = null, mapLayers = null, tiles = null;
   function viewMap(date) {
     return '<div class="mapview"><div id="map"></div><div class="map-top">' +
-      (date ? '<a class="pill" href="#/map">' + icon("close", false, "sm") + Store.shortDay(date) + "</a>" : '<button class="pill" data-trips>' + icon("luggage", false, "sm") + esc(tripName()) + icon("keyboard_arrow_down", false, "sm") + "</button>") +
+      '<div class="map-left"><button class="pill round" data-menu aria-label="Menu">' + icon("menu", false, "sm") + "</button>" +
+      (date ? '<a class="pill" href="#/map">' + icon("close", false, "sm") + Store.shortDay(date) + "</a>" : '<button class="pill" data-trips>' + icon("luggage", false, "sm") + esc(tripName()) + icon("keyboard_arrow_down", false, "sm") + "</button>") + "</div>" +
       '<label class="pill"><input type="checkbox" id="tilesBox"' + (Store.settings.streetMap !== false ? " checked" : "") + "> Street map</label></div>" +
       '<button class="pill map-save" id="saveArea">' + icon("cloud_download", false, "sm") + "Save this area for offline</button></div>";
   }
@@ -1494,6 +1532,7 @@
     if (V[1]) V[1](view, r.arg);
     hydrateThumbs(view);
     $$("[data-trips]", view).forEach(function (b) { b.onclick = function (e) { e.preventDefault(); tripSheet(); }; });
+    $$("[data-menu]", view).forEach(function (b) { b.onclick = openMenu; });
     $$("[data-newtrip]", view).forEach(function (b) { b.onclick = function (e) { e.preventDefault(); newTripSheet(); }; });
     $$("[data-back]", view).forEach(function (b) { b.onclick = function () { if (history.length > 1) history.back(); else go("#/today"); }; });
     var tab = { day: "journal", place: "map", entry: "today", photo: "photos", review: "photos", more: "" }[r.name];
@@ -1533,7 +1572,7 @@
     $("#videoInput").onchange = function () { handleFiles(this.files, "CAMERA"); };
     $("#libraryInput").onchange = function () { handleFiles(this.files, "IMPORT"); };
     $("#restoreInput").onchange = function () { doRestore(this.files[0]); };
-    window.addEventListener("hashchange", function () { $("#sheet").hidden = true; stopCam(); render(); });
+    window.addEventListener("hashchange", function () { $("#sheet").hidden = true; var dr = $("#drawer"); if (dr) dr.remove(); stopCam(); render(); });
     window.addEventListener("pagehide", flushAll);
     document.addEventListener("visibilitychange", function () { if (document.hidden) { flushAll(); stopCam(); } else { maybeCheck(); checkStorage(); } });
     setInterval(maybeCheck, 60e3);

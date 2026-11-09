@@ -20,14 +20,14 @@ restore brings everything across).
 ## Trips
 
 Each trip has its own name, dates, colour, days, places, photos, map and memory box. Tap the trip
-name at the top of any tab to switch or start one; the gear opens **Settings**, which edits the trip in
+name at the top of any tab to switch or start one; the ☰ menu has Clean up, Recently deleted, Backup and **Settings**, which edits the trip in
 use and has **Save all photos to the Photos app** (a batch of 20 per tap, which iOS requires).
 Journals from v1.0 become one trip on first start (database version 2).
 
 ## Tabs (v1.4)
 
 **Today** (Take photo, Library, Video, Note, today's photos, "How was today?"), **Journal** (the days as
-a list or a calendar), **Photos** and **Map**. Settings sit behind the gear at the top right.
+a list or a calendar), **Photos** and **Map**. The ☰ menu at the top left holds trips, photo housekeeping, backup and Settings.
 
 ## Photos tab: clean up and comments
 
