@@ -482,3 +482,23 @@ body.viewer-mode #view { animation: none; transform: none; }
 .pill.round { width: 40px; padding: 0; justify-content: center; flex: none; }
 .map-top .pill { white-space: nowrap; }
 .map-left .pill:not(.round) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- v1.5: website versions ---- */
+.site-card { display: flex; flex-direction: column; gap: 12px; }
+.site-top { display: flex; align-items: center; gap: 8px; }
+.site-top > div { flex: 1; min-width: 0; }
+.site-top b { display: block; font-size: 17px; }
+.site-top span { color: var(--muted); font-size: 14px; }
+.site-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.site-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 15px; color: var(--muted); margin: -6px 0 4px; }
+.site-bar b { color: var(--text); font-variant-numeric: tabular-nums; }
+.site-all { margin-left: auto; display: flex; }
+button.thumb.pick { border: 0; padding: 0; width: 100%; cursor: pointer; }
+.thumb.pick img { transition: opacity .2s, filter .2s, transform .15s var(--ease); }
+.thumb.pick.out img { opacity: .28; filter: grayscale(1); }
+.thumb.pick .tick { color: #fff; }
+.thumb.pick:not(.out) .tick { color: var(--primary); background: #fff; border-radius: 50%; }
+.thumb.pick.out .tick { color: var(--text); background: var(--panel); border-radius: 50%; padding: 2px; }
+.thumb.pick.out .tick .ic { width: 20px; height: 20px; }
+.site-row { gap: 4px; padding-right: 6px; }
+.site-row .btn.text { min-height: 40px; padding: 0 8px; }

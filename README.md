@@ -44,6 +44,15 @@ a list or a calendar), **Photos** and **Map**. The ☰ menu at the top left hold
   **Next** jumps to the next photo without a comment. Swipe left or right for the next photo.
 - None of this touches the copies in the iPhone's own Photos app.
 
+## Website versions (v1.5)
+
+Make different memory box websites for different people without deleting anything. ☰ → **Website
+versions** → **New website version** (for example "Family"). Each version starts with every photo; tap
+photos to leave them out (they fade) or put them back, a day or all at once. From the Photos tab,
+**Select** → **Website** does the same for many photos. **Export memory box** then asks which version
+(or Everyone). Versions are stored on the trip row as `sites: [{ id, name, out: [photo ids] }]`, so they
+go into backups; the website shows the version name under "Memory box".
+
 ## Videos
 
 **Photo / video** opens the camera with both modes; **Add from library** takes photos and videos.

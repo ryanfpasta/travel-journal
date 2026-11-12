@@ -73,6 +73,7 @@
       '<div class="mhead">Keep it safe</div>' +
       row("backup", "Back up now", "Last backup " + ago(Store.settings.lastBackupUtc), 'data-go="backup"') +
       row("redeem", "Export memory box", "A keepsake to open on a laptop", 'data-go="export"') +
+      row("tune", "Website versions", sites().length ? plural(sites().length, "version") + ", e.g. family or friends" : "Different photos for different people", 'data-go="#/sites"') +
       '<div class="mhead">App</div>' +
       row("settings", "Settings", "Location, storage, camera help", 'data-go="#/more"') +
       '<p class="mver">Travel Journal ' + APP_VERSION + "</p></nav>";
@@ -85,7 +86,7 @@
     $$("[data-go]", el).forEach(function (b) {
       b.onclick = function () {
         var g = b.dataset.go; close();
-        if (g === "trips") tripSheet(); else if (g === "backup") doBackup(); else if (g === "export") doExport(); else go(g);
+        if (g === "trips") tripSheet(); else if (g === "backup") doBackup(); else if (g === "export") exportChooser(); else go(g);
       };
     });
     var first = $(".mrow", el); if (first) first.focus({ preventScroll: true });
@@ -793,7 +794,7 @@
   function selBar(filter) {
     var b = filter === "deleted"
       ? [["restore", "restore_from_trash", "Restore"], ["forever", "delete_forever", "Delete"]]
-      : [["comment", "chat_bubble", "Comment"], filter === "hidden" ? ["unhide", "visibility", "Unhide"] : ["hide", "visibility_off", "Hide"], ["share", "share", "Share"], ["trash", "delete", "Delete"]];
+      : [["comment", "chat_bubble", "Comment"], ["site", "redeem", "Website"], filter === "hidden" ? ["unhide", "visibility", "Unhide"] : ["hide", "visibility_off", "Hide"], ["share", "share", "Share"], ["trash", "delete", "Delete"]];
     return '<div class="selbar" role="toolbar" aria-label="Selected photos">' + b.map(function (x) {
       return '<button data-act="' + x[0] + '"' + (x[0] === "trash" || x[0] === "forever" ? ' class="danger"' : "") + ">" + icon(x[1]) + x[2] + "</button>";
     }).join("") + "</div>";
@@ -874,6 +875,8 @@
       shareMany(list);
     } else if (act === "comment") {
       bulkComment(list, done);
+    } else if (act === "site") {
+      siteAction(list, done);
     }
   }
 
@@ -998,6 +1001,166 @@
         toast(plural(ids.length, "photo") + " moved to Recently deleted.", 6000, { label: "Undo", fn: function () { Store.restorePhotos(ids); } });
       });
     };
+  }
+
+  // ---- Website versions: different memory box websites for different people ----
+  // Stored on the trip row as sites: [{ id, name, out: [photo ids left out] }]. Every version starts
+  // with all photos, so new photos go in automatically. Nothing is deleted or hidden in the journal.
+
+  function sites() { var t = Store.trip(); return (t && t.sites) || []; }
+  function siteById(id) { return sites().filter(function (x) { return x.id === id; })[0] || null; }
+  function saveSites(list) { return Store.updateTrip(Store.trip().id, { sites: list }); }
+  function inSite(site, p) { return !site || site.out.indexOf(p.id) < 0; }
+  function siteCount(site) { var l = photoList("all"); return { inn: l.filter(function (p) { return inSite(site, p); }).length, all: l.length }; }
+  function newSite(onDone) {
+    var sh = sheet('<h3>New website version</h3><label class="lbl" for="siteName">Who is it for?</label><input id="siteName" placeholder="For example: Family, Work friends" autocomplete="off" enterkeyhint="done">' +
+      '<p class="muted small">It starts with every photo. Then leave out the ones these people shouldn’t see.</p>',
+      [{ label: "Cancel" }, { label: "Create", cls: "primary", keepOpen: true, onClick: async function () {
+        var name = $("#siteName").value.trim();
+        if (!name) { $("#siteName").focus(); return; }
+        sh.close();
+        var site = { id: Store.newId(), name: name, out: [] };
+        await saveSites(sites().concat([site]));
+        if (onDone) onDone(site); else go("#/site/" + site.id);
+      } }]);
+    setTimeout(function () { var i = $("#siteName", sh.el); if (i) i.focus(); }, 50);
+  }
+
+  function viewSites() {
+    var all = photoList("all").length;
+    return '<div class="page">' + appbar("Website versions", { back: true, solid: true }) +
+      '<h1 class="large-title">Website versions</h1>' +
+      '<p class="section-intro">Make a different memory box website for different people. Each version starts with every photo; tap the ones to leave out. Nothing is deleted, and the journal keeps every photo.</p>' +
+      '<div class="card site-card"><div class="site-top"><div><b>Everyone</b><span>All ' + plural(all, "photo") + "</span></div></div>" +
+      '<div class="site-btns"><button class="btn tonal sm" data-export="">' + icon("redeem", false, "sm") + "Export</button></div></div>" +
+      sites().map(function (x) {
+        var c = siteCount(x);
+        return '<div class="card site-card"><div class="site-top"><div><b>' + esc(x.name) + "</b><span>" + c.inn + " of " + plural(c.all, "photo") + "</span></div>" +
+          '<button class="icon-btn" data-sitemore="' + x.id + '" aria-label="More for ' + esc(x.name) + '">' + icon("more_vert") + "</button></div>" +
+          '<div class="site-btns"><a class="btn primary sm" href="#/site/' + x.id + '">' + icon("check_circle", false, "sm") + "Choose photos</a>" +
+          '<button class="btn tonal sm" data-export="' + x.id + '">' + icon("redeem", false, "sm") + "Export</button></div></div>";
+      }).join("") +
+      '<button class="btn outline wide" id="newSite">' + icon("add") + "New website version</button></div>";
+  }
+  function bindSites(root) {
+    $("#newSite", root).onclick = function () { newSite(); };
+    $$("[data-export]", root).forEach(function (b) { b.onclick = function () { doExport(b.dataset.export || null); }; });
+    $$("[data-sitemore]", root).forEach(function (b) {
+      b.onclick = function () {
+        var x = siteById(b.dataset.sitemore); if (!x) return;
+        var sh = sheet("<h3>" + esc(x.name) + '</h3><div class="actions">' +
+          '<button class="action" data-a="rename"><span class="lead">' + icon("edit") + "</span><div>Rename</div></button>" +
+          '<button class="action" data-a="copy"><span class="lead">' + icon("content_copy") + "</span><div>Make a copy<span class=\"sub\">Same photo choices, new name</span></div></button>" +
+          '<button class="action" data-a="del"><span class="lead">' + icon("delete") + "</span><div>Delete this version<span class=\"sub\">Only the choices. No photos are deleted.</span></div></button></div>", [{ label: "Close" }]);
+        $$("[data-a]", sh.el).forEach(function (a) {
+          a.onclick = function () {
+            sh.close();
+            if (a.dataset.a === "del") confirmSheet("Delete the website version “" + x.name + "”? Your photos stay as they are.", "Delete", function () {
+              saveSites(sites().filter(function (y) { return y.id !== x.id; })).then(function () { toast("Version deleted."); });
+            });
+            else if (a.dataset.a === "copy") saveSites(sites().concat([{ id: Store.newId(), name: x.name + " (copy)", out: x.out.slice() }])).then(function () { toast("Copy made."); });
+            else {
+              var r = sheet('<h3>Rename</h3><input id="siteName" value="' + esc(x.name) + '" enterkeyhint="done" aria-label="Name">', [{ label: "Cancel" }, { label: "Save", cls: "primary", onClick: function () {
+                var n = $("#siteName").value.trim(); if (!n) return;
+                saveSites(sites().map(function (y) { return y.id === x.id ? Object.assign({}, y, { name: n }) : y; }));
+              } }]);
+              setTimeout(function () { var i = $("#siteName", r.el); if (i) i.focus(); }, 50);
+            }
+          };
+        });
+      };
+    });
+  }
+
+  /** Tap photos to put them in or leave them out of one website version. */
+  function viewSite(id) {
+    var x = siteById(id);
+    if (!x) return '<div class="page">' + appbar("Website", { back: true, solid: true }) + emptyState("redeem", "This website version was deleted.") + "</div>";
+    var list = photoList("all"), c = siteCount(x), groups = {}, order = [];
+    list.forEach(function (p) { if (!groups[p.localDate]) { groups[p.localDate] = []; order.push(p.localDate); } groups[p.localDate].push(p); });
+    order.sort().reverse();
+    return '<div class="page site-page">' + appbar(x.name, { back: true, solid: true, backLabel: "Versions" }) +
+      '<h1 class="large-title">' + esc(x.name) + "</h1>" +
+      '<div class="site-bar"><b id="siteCount">' + c.inn + " of " + c.all + "</b> photos go into this website" +
+      '<span class="site-all"><button class="btn text sm" data-all="in">All in</button><button class="btn text sm" data-all="out">All out</button></span></div>' +
+      notice("info", "Tap a photo to leave it out (it fades) or put it back. Nothing is deleted.", "plain") +
+      order.map(function (k) {
+        return '<section class="pgroup"><div class="pg-head"><b>' + Store.shortDay(k) + '</b><span class="muted">' + groups[k].length + '</span><button class="btn text sm" data-day="' + k + '">In / out</button></div>' +
+          '<div class="grid">' + groups[k].map(function (p) {
+            var on = inSite(x, p);
+            return '<button class="thumb pick' + (on ? "" : " out") + '" data-pick="' + p.id + '" aria-pressed="' + on + '" aria-label="' + (on ? "In the website" : "Left out") + '"><img data-photo="' + p.id + '" alt="">' +
+              (Photos.isVideo(p) ? '<span class="vbadge">' + icon("play_arrow", true) + "</span>" : "") +
+              '<span class="tick">' + icon(on ? "check_circle" : "visibility_off", on) + "</span></button>";
+          }).join("") + "</div></section>";
+      }).join("") + "</div>" +
+      '<div class="selbar" role="toolbar"><button id="siteExport">' + icon("redeem") + "Export this website</button></div>";
+  }
+  function bindSite(root, id) {
+    var x = siteById(id); if (!x) return;
+    var out = new Set(x.out), timer = null;
+    function paint() {
+      $$("[data-pick]", root).forEach(function (b) {
+        var on = !out.has(b.dataset.pick);
+        b.classList.toggle("out", !on); b.setAttribute("aria-pressed", on); b.setAttribute("aria-label", on ? "In the website" : "Left out");
+        $(".tick", b).innerHTML = icon(on ? "check_circle" : "visibility_off", on);
+      });
+      var all = photoList("all"), inn = all.filter(function (p) { return !out.has(p.id); }).length;
+      $("#siteCount", root).textContent = inn + " of " + all.length;
+    }
+    // Saved quietly a moment after the last tap; the page isn't redrawn, so the scroll position stays.
+    function save() {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        var t = Store.trip(), list = (t.sites || []).map(function (y) { return y.id === id ? Object.assign({}, y, { out: Array.from(out) }) : y; });
+        Store.updateTrip(t.id, { sites: list });
+      }, 400);
+    }
+    bindSite.flush = function () { if (timer) { clearTimeout(timer); timer = null; var t = Store.trip(); Store.updateTrip(t.id, { sites: (t.sites || []).map(function (y) { return y.id === id ? Object.assign({}, y, { out: Array.from(out) }) : y; }) }); } };
+    $$("[data-pick]", root).forEach(function (b) { b.onclick = function () { var k = b.dataset.pick; if (out.has(k)) out.delete(k); else out.add(k); paint(); save(); }; });
+    $$("[data-day]", root).forEach(function (b) {
+      b.onclick = function () {
+        var ids = $$("[data-pick]", b.closest(".pgroup")).map(function (e) { return e.dataset.pick; });
+        var anyIn = ids.some(function (k) { return !out.has(k); });
+        ids.forEach(function (k) { if (anyIn) out.add(k); else out.delete(k); });
+        paint(); save();
+      };
+    });
+    $$("[data-all]", root).forEach(function (b) {
+      b.onclick = function () { photoList("all").forEach(function (p) { if (b.dataset.all === "in") out.delete(p.id); else out.add(p.id); }); paint(); save(); };
+    });
+    $("#siteExport").onclick = function () { bindSite.flush(); setTimeout(function () { doExport(id); }, 50); };
+  }
+
+  /** Chooses which version to export when there is more than one; otherwise exports everything. */
+  function exportChooser() {
+    if (!sites().length) return doExport(null);
+    var html = "<h3>Export which website?</h3><div class=\"pick-list\">" +
+      '<button class="row" data-id=""><div class="body"><b>Everyone</b><div class="muted">All ' + plural(photoList("all").length, "photo") + "</div></div></button>" +
+      sites().map(function (x) { var c = siteCount(x); return '<button class="row" data-id="' + x.id + '"><div class="body"><b>' + esc(x.name) + '</b><div class="muted">' + c.inn + " of " + plural(c.all, "photo") + "</div></div></button>"; }).join("") + "</div>";
+    var sh = sheet(html, [{ label: "Cancel" }, { label: "Manage versions", cls: "text", onClick: function () { go("#/sites"); } }]);
+    $$(".pick-list .row", sh.el).forEach(function (b) { b.onclick = function () { sh.close(); doExport(b.dataset.id || null); }; });
+  }
+
+  /** Select bar: leave the selected photos out of (or put them back into) one website version. */
+  function siteAction(list, done) {
+    var html = "<h3>Website for " + plural(list.length, "photo") + "</h3><p class=\"muted small\">Pick a version, then choose whether these photos go in or stay out. Nothing is deleted.</p><div class=\"pick-list\">" +
+      sites().map(function (x) {
+        var outN = list.filter(function (id) { return x.out.indexOf(id) >= 0; }).length;
+        return '<div class="row site-row"><div class="body"><b>' + esc(x.name) + '</b><div class="muted">' + (outN ? outN + " of these left out" : "All of these are in") + "</div></div>" +
+          '<button class="btn text sm" data-in="' + x.id + '">Put in</button><button class="btn text sm" data-out="' + x.id + '">Leave out</button></div>';
+      }).join("") + "</div>";
+    var sh = sheet(html, [{ label: "Close" }, { label: "New version", cls: "outline", onClick: function () { newSite(function (site) { siteAction(list, done); }); } }]);
+    function apply(id, leaveOut) {
+      sh.close();
+      var x = siteById(id), set = new Set(x.out);
+      list.forEach(function (k) { if (leaveOut) set.add(k); else set.delete(k); });
+      saveSites(sites().map(function (y) { return y.id === id ? Object.assign({}, y, { out: Array.from(set) }) : y; })).then(function () {
+        done(); toast(plural(list.length, "photo") + (leaveOut ? " left out of " : " put into ") + x.name + ".");
+      });
+    }
+    $$("[data-in]", sh.el).forEach(function (b) { b.onclick = function () { apply(b.dataset.in, false); }; });
+    $$("[data-out]", sh.el).forEach(function (b) { b.onclick = function () { apply(b.dataset.out, true); }; });
+    if (!sites().length) { sh.close(); newSite(function () { siteAction(list, done); }); }
   }
 
   // ---- Photo viewer ----
@@ -1314,7 +1477,7 @@
     var co = $("#checkOpen", root); if (co) co.onchange = function () { Store.saveSettings({ checkWhileOpen: this.checked }); };
     on("backup", doBackup);
     on("restore", function () { $("#restoreInput").value = ""; $("#restoreInput").click(); });
-    on("export", doExport);
+    on("export", exportChooser);
     if (!$("#storageCard", root)) return;
     Promise.all([checkStorage(), navigator.storage && navigator.storage.persisted ? navigator.storage.persisted() : Promise.resolve(false)]).then(function (r) {
       var card = $("#storageCard"); if (!card) return;
@@ -1422,7 +1585,8 @@
     "lib/images/layers.png", "lib/images/layers-2x.png", "lib/images/marker-icon.png", "lib/images/marker-icon-2x.png", "lib/images/marker-shadow.png",
     "fonts/dm-sans-latin-400-normal.woff2", "fonts/dm-sans-latin-500-normal.woff2", "fonts/dm-sans-latin-700-normal.woff2", "fonts/dm-serif-display-latin-400-normal.woff2", "fonts/OFL-DM-Sans.txt"];
 
-  async function doExport() {
+  async function doExport(siteId) {
+    var site = siteId ? siteById(siteId) : null;
     var r = await runJob("Memory box", async function (progress) {
       await Store.fillMissingPhotoLocations();
       var files = [];
@@ -1433,7 +1597,7 @@
         files.push({ name: "memory-box/" + f, data: await res.blob() });
       }
       var photos = [];
-      Store.values(S.photos).filter(function (p) { return Store.live(p) && !Photos.isVideo(p); }).sort(function (a, b) { return a.takenAtUtc - b.takenAtUtc; }).forEach(function (p) { photos.push(p); });
+      Store.values(S.photos).filter(function (p) { return Store.live(p) && !Photos.isVideo(p) && inSite(site, p); }).sort(function (a, b) { return a.takenAtUtc - b.takenAtUtc; }).forEach(function (p) { photos.push(p); });
       var have = [];
       for (var i = 0; i < photos.length; i++) {
         var p = photos[i], base = p.fileName.replace(/\.[^.]+$/, "");
@@ -1449,6 +1613,7 @@
       var sc = scheme().l, trip = Store.trip() || {};
       var data = {
         title: tripName(),
+        edition: site ? site.name : "",
         app: "Travel Journal",
         exportedAt: Store.prettyDay(Store.today()),
         startDate: trip.startDate || dates[0], endDate: trip.endDate || dates[dates.length - 1],
@@ -1472,8 +1637,8 @@
       return { zip: await Zip.write(files), photos: have.length };
     });
     if (!r) return;
-    saveFile(r.zip, safeName(tripName()) + "-memory-box-" + Store.today() + ".zip", "application/zip",
-      "<h3>Memory box ready</h3><p>" + plural(r.photos, "photo") + ". Save it to Files or AirDrop it to a laptop, unzip, and open <b>memory-box/index.html</b>.</p>");
+    saveFile(r.zip, safeName(tripName()) + (site ? "-" + safeName(site.name) : "") + "-memory-box-" + Store.today() + ".zip", "application/zip",
+      "<h3>Memory box ready</h3><p>" + (site ? esc(site.name) + " version, " : "") + plural(r.photos, "photo") + ". Save it to Files or AirDrop it to a laptop, unzip, and open <b>memory-box/index.html</b>.</p>");
   }
 
   // ---- Router ----
@@ -1506,6 +1671,7 @@
 
   function render() {
     flushAll();
+    if (bindSite.flush) { bindSite.flush(); bindSite.flush = null; }
     var r = parse(), key = r.name + "/" + r.arg, sameRoute = key === currentRoute;
     var scroll = sameRoute ? window.scrollY : 0;
     if (map) { try { map.remove(); } catch (e) { console.warn(e); } map = null; }
@@ -1515,7 +1681,7 @@
     if (r.name === "calendar") r = { name: "journal", arg: "calendar" };
     if (r.name !== "photos") sel = null;
     var V = {
-      today: [viewToday, bindToday], journal: [viewJournal, bindJournal], photos: [viewPhotos, bindPhotos], review: [viewReview, bindReview], map: [viewMap, bindMap],
+      today: [viewToday, bindToday], journal: [viewJournal, bindJournal], photos: [viewPhotos, bindPhotos], review: [viewReview, bindReview], sites: [viewSites, bindSites], site: [viewSite, bindSite], map: [viewMap, bindMap],
       more: [viewMore, bindMore], day: [viewDay, bindDay], place: [viewPlace, bindPlace], entry: [viewEntry, bindEntry], photo: [viewPhoto, bindPhoto],
     }[r.name] || [viewToday, bindToday];
     // Leaving an entry that was never filled in removes it, so stray taps don't leave blank rows.
@@ -1535,11 +1701,11 @@
     $$("[data-menu]", view).forEach(function (b) { b.onclick = openMenu; });
     $$("[data-newtrip]", view).forEach(function (b) { b.onclick = function (e) { e.preventDefault(); newTripSheet(); }; });
     $$("[data-back]", view).forEach(function (b) { b.onclick = function () { if (history.length > 1) history.back(); else go("#/today"); }; });
-    var tab = { day: "journal", place: "map", entry: "today", photo: "photos", review: "photos", more: "" }[r.name];
+    var tab = { day: "journal", place: "map", entry: "today", photo: "photos", review: "photos", more: "", sites: "", site: "" }[r.name];
     if (tab == null) tab = r.name;
     if (tab && !TABS.some(function (t) { return t[0] === tab; })) tab = "today";
     renderTabs(tab);
-    document.body.classList.toggle("select-mode", !!sel || r.name === "review");
+    document.body.classList.toggle("select-mode", !!sel || r.name === "review" || r.name === "site");
     document.body.classList.toggle("map-mode", r.name === "map");
     document.body.classList.toggle("viewer-mode", r.name === "photo" && !!S.photos.get(r.arg));
     window.scrollTo(0, scroll);

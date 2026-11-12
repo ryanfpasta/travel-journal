@@ -77,6 +77,7 @@
   // ---- Header ----
   document.title = T.title + " · Memory Box";
   document.getElementById("title").textContent = T.title;
+  if (T.edition) document.getElementById("eyebrow").textContent = "Memory box \u00b7 " + T.edition;
   var fmt = { weekday: "short", day: "numeric", month: "short", year: "numeric" };
   var s0 = parseDate(T.startDate), s1 = parseDate(T.endDate);
   var sameYear = s0.getFullYear() === s1.getFullYear(), sameMonth = sameYear && s0.getMonth() === s1.getMonth();
