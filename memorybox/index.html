@@ -8,33 +8,49 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <div>
-    <h1 id="title">Memory Box</h1>
-    <p id="stats"></p>
-  </div>
-  <nav>
-    <button data-tab="timeline" class="active">Timeline</button>
-    <button data-tab="places">Places</button>
-    <button id="play">▶ Play the trip</button>
-  </nav>
-</header>
-<main>
-  <section id="mapwrap">
-    <div id="map"></div>
-    <div id="recapCard" hidden></div>
-    <label class="tiles"><input type="checkbox" id="tiles"> Street map (needs internet)</label>
+<main id="page">
+  <section id="left">
+    <header id="masthead">
+      <p class="eyebrow" id="eyebrow">Memory box</p>
+      <h1 id="title">Memory Box</h1>
+      <p id="dates"></p>
+      <dl id="stats"></dl>
+      <nav id="actions">
+        <button id="play" class="btn primary"><span class="i" data-icon="play"></span><span class="lbl">Play recap</span></button>
+        <button id="wholeTrip" class="btn tonal"><span class="i" data-icon="fit"></span><span class="lbl">Whole trip</span></button>
+        <button id="collageBtn" class="btn tonal" hidden><span class="i" data-icon="collage"></span><span class="lbl">Collage</span></button>
+      </nav>
+    </header>
+    <div id="filmstrip" aria-label="Highlights"></div>
+    <section class="block">
+      <div class="block-head"><h2 class="label">Calendar</h2><p id="legend"></p></div>
+      <div id="calendar" aria-label="Trip calendar"></div>
+    </section>
+    <article id="detail" class="block"></article>
+    <footer id="foot"></footer>
   </section>
-  <section id="panel">
-    <div id="timeline" class="tab"></div>
-    <div id="places" class="tab" hidden></div>
+  <section id="mapwrap">
+    <div id="mapcard">
+      <div id="map"></div>
+      <div id="mapNote" hidden></div>
+      <div id="recapBar" hidden>
+        <button id="recPause" class="icon-btn" aria-label="Pause"><span class="i" data-icon="pause"></span></button>
+        <button id="recSkip" class="icon-btn" aria-label="Next day"><span class="i" data-icon="next"></span></button>
+        <span id="recDay"></span>
+        <label class="speed"><span class="sr">Speed</span><select id="recSpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+        <button id="recStop" class="icon-btn" aria-label="Stop"><span class="i" data-icon="stop"></span></button>
+      </div>
+      <div id="recapCard" hidden></div>
+    </div>
   </section>
 </main>
 <div id="lightbox" hidden>
-  <button class="close" aria-label="Close">×</button>
-  <button class="prev" aria-label="Previous">‹</button>
-  <figure><img alt=""><figcaption></figcaption></figure>
-  <button class="next" aria-label="Next">›</button>
+  <div class="stage"></div>
+  <div class="caption"></div>
+  <button class="close icon-btn" aria-label="Close"><span class="i" data-icon="close"></span></button>
+  <button class="prev icon-btn" aria-label="Previous"><span class="i" data-icon="prev"></span></button>
+  <button class="next icon-btn" aria-label="Next"><span class="i" data-icon="nextArrow"></span></button>
+  <div class="hint">Scroll or pinch to zoom · drag to move · double-click to reset</div>
 </div>
 <script src="lib/leaflet.js"></script>
 <script src="lib/topojson-client.min.js"></script>

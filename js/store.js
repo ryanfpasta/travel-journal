@@ -212,19 +212,25 @@
 
   // ---- Views over the data ----
 
+  // A photo shows in the journal, on the map and in exports unless it's hidden or in Recently deleted.
+  // Hidden photos stay in backups; deleted ones wait 30 days in Recently deleted, then go for good.
+  function live(p) { return p.status === "READY" && !p.hidden; }
+  function trashed(p) { return p.status === "DELETED"; }
+  var TRASH_DAYS = 30;
+
   function values(m) { return Array.from(m.values()); }
 
   function allDates() {
     var set = new Set();
     S.dayLogs.forEach(function (l) { if (l.mood || l.rating || l.note) set.add(l.localDate); });
     S.entries.forEach(function (x) { set.add(x.localDate); });
-    S.photos.forEach(function (x) { if (x.status === "READY") set.add(x.localDate); });
+    S.photos.forEach(function (x) { if (live(x)) set.add(x.localDate); });
     S.points.forEach(function (x) { set.add(x.localDate); });
     return Array.from(set).sort().reverse();
   }
 
   function day(date) {
-    var photos = values(S.photos).filter(function (p) { return p.status === "READY" && p.localDate === date; }).sort(function (a, b) { return a.takenAtUtc - b.takenAtUtc; });
+    var photos = values(S.photos).filter(function (p) { return live(p) && p.localDate === date; }).sort(function (a, b) { return a.takenAtUtc - b.takenAtUtc; });
     var entries = values(S.entries).filter(function (e) { return e.localDate === date; }).sort(function (a, b) { return a.createdAtUtc - b.createdAtUtc; });
     var points = values(S.points).filter(function (p) { return p.localDate === date; }).sort(function (a, b) { return a.timeUtc - b.timeUtc; });
     var touched = points.map(function (p) { return [p.timeUtc, p.placeId]; })
@@ -239,7 +245,7 @@
     return { localDate: date, log: S.dayLogs.get(date) || null, places: places, photos: photos, entries: entries, points: points, cities: cities };
   }
 
-  function placePhotos(id) { return values(S.photos).filter(function (p) { return p.status === "READY" && p.placeId === id; }).sort(function (a, b) { return a.takenAtUtc - b.takenAtUtc; }); }
+  function placePhotos(id) { return values(S.photos).filter(function (p) { return live(p) && p.placeId === id; }).sort(function (a, b) { return a.takenAtUtc - b.takenAtUtc; }); }
   function placeEntries(id) { return values(S.entries).filter(function (e) { return e.placeId === id; }); }
 
   /** The place you're most likely at: the latest one touched in the last three hours. */
@@ -391,12 +397,39 @@
     return put("photos", Object.assign({}, p, change));
   }
 
-  async function deletePhoto(id) {
-    var p = S.photos.get(id); if (!p) return;
-    await tx(["photos", "blobs"], "readwrite", function (s) {
-      s.photos.delete(id); s.blobs.delete("full:" + p.fileName); s.blobs.delete("thumb:" + p.fileName);
+  async function deletePhoto(id) { return deletePhotosForever([id]); }
+
+  /** Changes many photos in one save. change is an object, or a function (photo) -> object. */
+  async function updatePhotos(ids, change) {
+    var rows = ids.map(function (id) { return S.photos.get(id); }).filter(Boolean).map(function (p) {
+      return Object.assign({}, p, typeof change === "function" ? change(p) : change);
     });
-    S.photos.delete(id); ALL.photos.delete(id); changed();
+    if (!rows.length) return [];
+    rows.forEach(function (r) { ALL.photos.set(r.id, r); S.photos.set(r.id, r); });
+    await tx(["photos"], "readwrite", function (s) { rows.forEach(function (r) { s.photos.put(r); }); });
+    changed();
+    return rows;
+  }
+  function trashPhotos(ids) { return updatePhotos(ids, { status: "DELETED", deletedAtUtc: Date.now() }); }
+  function restorePhotos(ids) { return updatePhotos(ids, { status: "READY", deletedAtUtc: null }); }
+  function hidePhotos(ids, hidden) { return updatePhotos(ids, { hidden: !!hidden }); }
+
+  /** Removes photos and their images for good. */
+  async function deletePhotosForever(ids) {
+    var gone = ids.map(function (id) { return ALL.photos.get(id); }).filter(Boolean);
+    if (!gone.length) return;
+    await tx(["photos", "blobs"], "readwrite", function (s) {
+      gone.forEach(function (p) { s.photos.delete(p.id); s.blobs.delete("full:" + p.fileName); s.blobs.delete("thumb:" + p.fileName); });
+    });
+    gone.forEach(function (p) { S.photos.delete(p.id); ALL.photos.delete(p.id); });
+    changed();
+  }
+  /** Empties Recently deleted of anything older than 30 days, across every trip. */
+  async function purgeOldTrash() {
+    var cutoff = Date.now() - TRASH_DAYS * 864e5;
+    var old = values(ALL.photos).filter(function (p) { return trashed(p) && (p.deletedAtUtc || 0) < cutoff; }).map(function (p) { return p.id; });
+    if (old.length) await deletePhotosForever(old);
+    return old.length;
   }
 
   async function applyFixToPhoto(id, fix, approx) {
@@ -528,6 +561,8 @@
     findOrCreatePlace: findOrCreatePlace, mergePlaces: mergePlaces, deletePlace: deletePlace, updatePlace: updatePlace,
     saveDayLog: saveDayLog, newEntry: newEntry, updateEntry: updateEntry, deleteEntry: deleteEntry,
     addPhoto: addPhoto, updatePhoto: updatePhoto, deletePhoto: deletePhoto, applyFixToPhoto: applyFixToPhoto,
+    live: live, trashed: trashed, TRASH_DAYS: TRASH_DAYS, updatePhotos: updatePhotos, trashPhotos: trashPhotos, restorePhotos: restorePhotos,
+    hidePhotos: hidePhotos, deletePhotosForever: deletePhotosForever, purgeOldTrash: purgeOldTrash,
     fillMissingPhotoLocations: fillMissingPhotoLocations, getBlob: getBlob, putBlob: putBlob,
     backupFiles: backupFiles, restore: restore,
   };
