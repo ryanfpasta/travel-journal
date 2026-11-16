@@ -342,21 +342,78 @@
   }
 
   /** Lets the person choose a place. onPick(placeOrNull). Nearest to `near` first, else most recent. */
-  function pickPlace(near, onPick, allowNone) {
-    var list = Store.values(S.places);
-    if (near && near.lat != null) list.sort(function (a, b) { return Store.distanceM(a.lat, a.lon, near.lat, near.lon) - Store.distanceM(b.lat, b.lon, near.lat, near.lon); });
-    else list.sort(function (a, b) { return b.createdAtUtc - a.createdAtUtc; });
-    var html = "<h3>Choose a place</h3>" + (list.length ? "" : '<p class="muted">No places yet. Tap Sync now on the Today tab to start one.</p>') +
-      '<div class="pick-list">' + (allowNone ? '<button class="row" data-id=""><span class="lead">' + icon("location_off") + '</span><div class="body"><b>No place</b></div></button>' : "") +
-      list.map(function (p) {
-        var d = near && near.lat != null ? Store.distanceM(p.lat, p.lon, near.lat, near.lon) : null;
-        return '<button class="row" data-id="' + p.id + '"><span class="lead">' + icon("location_on", true) + '</span><div class="body"><b>' + esc(p.name) + "</b>" + (p.city ? '<div class="muted">' + esc(p.city) + "</div>" : "") +
-          "</div>" + (d != null ? '<div class="right">' + (d < 1000 ? Math.round(d) + " m" : (d / 1000).toFixed(1) + " km") + "</div>" : "") + "</button>";
-      }).join("") + "</div>";
+  /**
+   * Place picker: a search box, then Suggested (places used by these photos' time or GPS), Recent,
+   * and every other place (nearest first), plus New place. opts.photos = the photos it is for.
+   */
+  function pickPlace(near, onPick, allowNone, opts) {
+    opts = opts || {};
+    var photos = opts.photos || [], all = Store.values(S.places);
+    var gps = photos.filter(function (p) { return p.lat != null; });
+    if (!near && gps.length) near = gps[0];
+    function dist(p) { return near && near.lat != null ? Store.distanceM(p.lat, p.lon, near.lat, near.lon) : null; }
+    var score = {};
+    photos.forEach(function (ph) {
+      S.photos.forEach(function (o) {
+        if (o.placeId && o.id !== ph.id && Math.abs(o.takenAtUtc - ph.takenAtUtc) < 2 * 3600e3) score[o.placeId] = (score[o.placeId] || 0) + 1;
+      });
+    });
+    gps.forEach(function (ph) { all.forEach(function (pl) { if (Store.distanceM(pl.lat, pl.lon, ph.lat, ph.lon) < 1000) score[pl.id] = (score[pl.id] || 0) + 2; }); });
+    var suggested = all.filter(function (pl) { return score[pl.id]; }).sort(function (a, b) { return score[b.id] - score[a.id]; }).slice(0, 3);
+    var used = {};
+    S.photos.forEach(function (o) { if (o.placeId) used[o.placeId] = Math.max(used[o.placeId] || 0, o.takenAtUtc); });
+    var recent = all.filter(function (pl) { return suggested.indexOf(pl) < 0; })
+      .sort(function (a, b) { return (used[b.id] || b.createdAtUtc) - (used[a.id] || a.createdAtUtc); }).slice(0, 4);
+    var rest = all.filter(function (pl) { return suggested.indexOf(pl) < 0 && recent.indexOf(pl) < 0; });
+    rest.sort(function (a, b) { var da = dist(a), db = dist(b); return da != null ? da - db : a.name.localeCompare(b.name); });
+    function row(pl) {
+      var d = dist(pl);
+      return '<button class="row" data-id="' + pl.id + '" data-q="' + esc((pl.name + " " + (pl.city || "")).toLowerCase()) + '"><span class="lead">' + icon("location_on", true) + '</span><div class="body"><b>' + esc(pl.name) + "</b>" + (pl.city ? '<div class="muted">' + esc(pl.city) + "</div>" : "") +
+        "</div>" + (d != null ? '<div class="right">' + (d < 1000 ? Math.round(d) + " m" : (d / 1000).toFixed(1) + " km") + "</div>" : "") + "</button>";
+    }
+    function group(title, list) { return list.length ? '<div class="pick-group"><div class="muted small pick-head">' + title + "</div>" + list.map(row).join("") + "</div>" : ""; }
+    var html = "<h3>" + esc(opts.title || "Choose a place") + "</h3>" +
+      (all.length > 5 ? '<input id="placeSearch" type="search" placeholder="Search places" autocomplete="off">' : "") +
+      '<div class="pick-list">' +
+      '<button class="row" data-new="1"><span class="lead">' + icon("add") + '</span><div class="body"><b>New place</b><div class="muted">' + (gps.length ? "Where these photos were taken" : "Where you are now") + "</div></div></button>" +
+      group("Suggested", suggested) + group("Recent", recent) + group(suggested.length || recent.length ? "All places" : "Places", rest) +
+      (allowNone ? '<button class="row" data-id=""><span class="lead">' + icon("location_off") + '</span><div class="body"><b>No place</b></div></button>' : "") + "</div>";
     var sh = sheet(html, [{ label: "Cancel" }]);
-    $$(".pick-list .row", sh.el).forEach(function (b) {
+    var q = $("#placeSearch", sh.el);
+    if (q) q.oninput = function () {
+      var t = q.value.trim().toLowerCase();
+      $$(".pick-list .row[data-q]", sh.el).forEach(function (b) { b.hidden = t && b.dataset.q.indexOf(t) < 0; });
+      $$(".pick-group", sh.el).forEach(function (g) { g.hidden = !$$(".row[data-q]", g).some(function (b) { return !b.hidden; }); });
+    };
+    $$(".pick-list .row[data-id]", sh.el).forEach(function (b) {
       b.onclick = function () { sh.close(); onPick(b.dataset.id ? S.places.get(b.dataset.id) : null); };
     });
+    $(".pick-list .row[data-new]", sh.el).onclick = async function () {
+      var name = (q && q.value.trim()) || prompt("Name this place");
+      if (!name) return;
+      sh.close();
+      var fix = gps.length ? { lat: gps[0].lat, lon: gps[0].lon, accuracyM: 30 } : await Store.getFix(10000).catch(function () { return null; });
+      if (!fix) return toast("No location for a new place. Turn on Location, or pick an existing place.", 5000);
+      var t = gps.length ? gps[0].takenAtUtc : Date.now();
+      var pl = await Store.findOrCreatePlace(fix, t, Store.zone());
+      if (/^New place/.test(pl.name)) pl = await Store.updatePlace(pl.id, { name: name }) || S.places.get(pl.id);
+      onPick(pl);
+    };
+  }
+
+  /** Select bar > Place: one place for every selected photo, with Undo. */
+  function bulkPlace(list, done) {
+    var rows = list.map(function (id) { return S.photos.get(id); }).filter(Boolean);
+    pickPlace(null, function (place) {
+      var before = {};
+      rows.forEach(function (p) { before[p.id] = { placeId: p.placeId, placeLocked: p.placeLocked, lat: p.lat, lon: p.lon, locStatus: p.locStatus }; });
+      Store.updatePhotos(list, function (p) {
+        return place ? { placeId: place.id, placeLocked: true, lat: p.lat != null ? p.lat : place.lat, lon: p.lon != null ? p.lon : place.lon, locStatus: p.lat != null ? p.locStatus : "MANUAL" } : { placeId: null, placeLocked: false };
+      }).then(function () {
+        done();
+        toast(plural(rows.length, "photo") + (place ? " now at " + place.name : " have no place now") + ".", 6000, { label: "Undo", fn: function () { Store.updatePhotos(list, function (p) { return before[p.id]; }); } });
+      });
+    }, true, { photos: rows, title: "Place for " + plural(rows.length, "photo") });
   }
 
   // ---- Storage ----
@@ -794,7 +851,7 @@
   function selBar(filter) {
     var b = filter === "deleted"
       ? [["restore", "restore_from_trash", "Restore"], ["forever", "delete_forever", "Delete"]]
-      : [["comment", "chat_bubble", "Comment"], ["site", "redeem", "Website"], filter === "hidden" ? ["unhide", "visibility", "Unhide"] : ["hide", "visibility_off", "Hide"], ["share", "share", "Share"], ["trash", "delete", "Delete"]];
+      : [["place", "location_on", "Place"], ["comment", "chat_bubble", "Comment"], ["site", "redeem", "Website"], filter === "hidden" ? ["unhide", "visibility", "Unhide"] : ["hide", "visibility_off", "Hide"], ["share", "share", "Share"], ["trash", "delete", "Delete"]];
     return '<div class="selbar" role="toolbar" aria-label="Selected photos">' + b.map(function (x) {
       return '<button data-act="' + x[0] + '"' + (x[0] === "trash" || x[0] === "forever" ? ' class="danger"' : "") + ">" + icon(x[1]) + x[2] + "</button>";
     }).join("") + "</div>";
@@ -877,6 +934,8 @@
       bulkComment(list, done);
     } else if (act === "site") {
       siteAction(list, done);
+    } else if (act === "place") {
+      bulkPlace(list, done);
     }
   }
 
@@ -1272,7 +1331,7 @@
         var change = place ? { placeId: place.id, placeLocked: true, lat: cur.lat != null ? cur.lat : place.lat, lon: cur.lon != null ? cur.lon : place.lon, locStatus: cur.lat != null ? cur.locStatus : "MANUAL" }
           : { placeId: null, placeLocked: false };
         Store.updatePhoto(id, change).then(function () { render(true); });
-      }, true);
+      }, true, { photos: [cur] });
     });
     on("#delPh", function () {
       flushAll();
