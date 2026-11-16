@@ -360,11 +360,22 @@
     });
     gps.forEach(function (ph) { all.forEach(function (pl) { if (Store.distanceM(pl.lat, pl.lon, ph.lat, ph.lon) < 1000) score[pl.id] = (score[pl.id] || 0) + 2; }); });
     var suggested = all.filter(function (pl) { return score[pl.id]; }).sort(function (a, b) { return score[b.id] - score[a.id]; }).slice(0, 3);
+    // Nearby = used on the same day(s), first made on those days, or within 25 km. Others hide behind Show all.
+    var days = {}, sameDay = {};
+    (photos.length ? photos : [{ localDate: Store.today() }]).forEach(function (ph) { days[ph.localDate] = 1; });
+    S.photos.forEach(function (o) { if (o.placeId && days[o.localDate]) sameDay[o.placeId] = 1; });
+    var anchors = gps.length ? gps : near && near.lat != null ? [near] : [];
+    function isNear(pl) {
+      return sameDay[pl.id] || days[pl.firstLocalDate] || anchors.some(function (a) { return Store.distanceM(pl.lat, pl.lon, a.lat, a.lon) < 25000; });
+    }
+    var far = all.filter(function (pl) { return suggested.indexOf(pl) < 0 && !isNear(pl); });
+    if (far.length === all.length - suggested.length) far = [];
     var used = {};
     S.photos.forEach(function (o) { if (o.placeId) used[o.placeId] = Math.max(used[o.placeId] || 0, o.takenAtUtc); });
-    var recent = all.filter(function (pl) { return suggested.indexOf(pl) < 0; })
+    var recent = all.filter(function (pl) { return suggested.indexOf(pl) < 0 && far.indexOf(pl) < 0; })
       .sort(function (a, b) { return (used[b.id] || b.createdAtUtc) - (used[a.id] || a.createdAtUtc); }).slice(0, 4);
-    var rest = all.filter(function (pl) { return suggested.indexOf(pl) < 0 && recent.indexOf(pl) < 0; });
+    var rest = all.filter(function (pl) { return suggested.indexOf(pl) < 0 && recent.indexOf(pl) < 0 && far.indexOf(pl) < 0; });
+    far.sort(function (a, b) { return a.name.localeCompare(b.name); });
     rest.sort(function (a, b) { var da = dist(a), db = dist(b); return da != null ? da - db : a.name.localeCompare(b.name); });
     function row(pl) {
       var d = dist(pl);
@@ -373,17 +384,22 @@
     }
     function group(title, list) { return list.length ? '<div class="pick-group"><div class="muted small pick-head">' + title + "</div>" + list.map(row).join("") + "</div>" : ""; }
     var html = "<h3>" + esc(opts.title || "Choose a place") + "</h3>" +
-      (all.length > 5 ? '<input id="placeSearch" type="search" placeholder="Search places" autocomplete="off">' : "") +
+      (all.length > 5 ? '<input id="placeSearch" type="search" placeholder="Search all places" autocomplete="off">' : "") +
       '<div class="pick-list">' +
       '<button class="row" data-new="1"><span class="lead">' + icon("add") + '</span><div class="body"><b>New place</b><div class="muted">' + (gps.length ? "Where these photos were taken" : "Where you are now") + "</div></div></button>" +
-      group("Suggested", suggested) + group("Recent", recent) + group(suggested.length || recent.length ? "All places" : "Places", rest) +
+      group("Suggested", suggested) + group("Recent", recent) + group(suggested.length || recent.length ? "Nearby" : "Places", rest) +
+      (far.length ? '<button class="row" id="showFar"><span class="lead">' + icon("chevron_right") + '</span><div class="body"><b>Show all places</b><div class="muted">' + far.length + " more, other days and further away</div></div></button>" +
+        '<div class="pick-group" id="farGroup" hidden><div class="muted small pick-head">Other places</div>' + far.map(row).join("") + "</div>" : "") +
       (allowNone ? '<button class="row" data-id=""><span class="lead">' + icon("location_off") + '</span><div class="body"><b>No place</b></div></button>' : "") + "</div>";
     var sh = sheet(html, [{ label: "Cancel" }]);
     var q = $("#placeSearch", sh.el);
+    var showFar = $("#showFar", sh.el), farOpen = false;
+    if (showFar) showFar.onclick = function () { farOpen = true; showFar.hidden = true; $("#farGroup", sh.el).hidden = false; };
     if (q) q.oninput = function () {
       var t = q.value.trim().toLowerCase();
       $$(".pick-list .row[data-q]", sh.el).forEach(function (b) { b.hidden = t && b.dataset.q.indexOf(t) < 0; });
       $$(".pick-group", sh.el).forEach(function (g) { g.hidden = !$$(".row[data-q]", g).some(function (b) { return !b.hidden; }); });
+      if (showFar && !farOpen) { showFar.hidden = !!t; if (!t) $("#farGroup", sh.el).hidden = true; }
     };
     $$(".pick-list .row[data-id]", sh.el).forEach(function (b) {
       b.onclick = function () { sh.close(); onPick(b.dataset.id ? S.places.get(b.dataset.id) : null); };
