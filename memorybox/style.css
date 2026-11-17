@@ -190,7 +190,7 @@ button:focus-visible, .cell:focus-visible, .thumb:focus-visible { outline: 2px s
 #recapBar select option { color: #000; }
 #recapCard { position: absolute; top: 16px; right: 16px; z-index: 650; width: min(320px, 70%); background: var(--card); color: var(--ink); border-radius: 18px; box-shadow: var(--shadow-2); overflow: hidden; animation: rise .35s var(--ease); }
 #recapCard .rc-media { position: relative; margin: 0; padding: 0; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; background: #000; }
-#recapCard .rc-media img, #recapCard .rc-media video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+#recapCard .rc-media img, #recapCard .rc-media video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
 #recapCard > div { position: relative; background: var(--card); }
 #recapCard div { padding: 12px 16px 14px; font-size: 14px; }
 #recapCard b { display: block; font: 400 20px/1.2 var(--serif); }
@@ -249,3 +249,16 @@ button:focus-visible, .cell:focus-visible, .thumb:focus-visible { outline: 2px s
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
 #mapcard:has(#recapBar:not([hidden])) #mapNote { display: none; }
+
+/* Day panel photos zoom and pan in place (wheel, pinch, drag; double-click resets). */
+#detail .pgroup .thumb { touch-action: pan-y; }
+#detail .pgroup .thumb.zoomed { touch-action: none; cursor: grab; }
+#detail .pgroup .thumb.zoomed img, #detail .pgroup .thumb.zoomed:hover img { transition: none; }
+#detail .pgroup .thumb:hover img { transform: none; }
+/* Map pin hover preview */
+.leaflet-tooltip.peek-tip { padding: 0; border: 0; border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-2); background: var(--card); color: var(--ink); }
+.peek { width: 200px; }
+.peek img { width: 200px; height: 150px; object-fit: cover; display: block; }
+.peek div { padding: 8px 12px 10px; white-space: normal; }
+.peek b { display: block; font-size: 14px; }
+.peek span { font-size: 12px; color: var(--muted, #776); }

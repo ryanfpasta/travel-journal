@@ -246,6 +246,13 @@
       (media.length ? "<div class='gallery'>" + shown.map(function (m) { return thumbHtml(m).replace("<div class=\"thumb\"", "<div class=\"thumb\" data-group=\"" + g + "\""); }).join("") +
         (media.length > shown.length ? "<div class='thumb more' data-media='" + media[8].index + "' data-group='" + g + "'><span>+" + (media.length - 8) + "</span></div>" : "") + "</div>" : "");
   }
+  /** Hover preview for a pin: the first photo (or clip frame) and how many there are. */
+  function peek(title, media) {
+    var first = media.filter(function (m) { return m.type === "photo"; })[0] || media[0];
+    return "<div class='peek'><img src='" + (first.type === "photo" ? first.src : first.thumb) + "' alt=''><div><b>" + esc(title) + "</b><span>" +
+      media.length + (media.length === 1 ? " photo" : " photos and clips") + "</span></div></div>";
+  }
+  var PEEK = { direction: "top", offset: [0, -18], opacity: 1, className: "peek-tip" };
   var POPUP = { maxWidth: 260, maxHeight: 340, autoPanPaddingTopLeft: [16, 16], autoPanPaddingBottomRight: [16, 16] };
 
   // One pin per place (with its kind-of-stop icon), plus one per photo or clip that isn't tied to a place.
@@ -255,18 +262,19 @@
     var pts = [];
     T.places.forEach(function (p) {
       var media = (mediaByPlace[p.id] || []).filter(function (m) { return !date || m.date === date; });
-      var onDay = !date || (dayByDate[date] && dayByDate[date].placeIds.indexOf(p.id) >= 0) || media.length;
-      if (!onDay) return;
+      if (!media.length) return;
       var entries = T.entries.filter(function (e) { return e.placeId === p.id && (!date || e.date === date); });
       L.marker([p.lat, p.lon], { icon: pinIcon(p.stop || (entries[0] && entries[0].stop)) })
         .bindPopup(popupFor(niceName(p) || "Place", esc(p.city) + " " + stars(p.rating) + " " + mood(p.mood), media, entries), POPUP)
+        .bindTooltip(peek(niceName(p) || "Place", media), PEEK)
         .addTo(pins);
       pts.push([p.lat, p.lon]);
     });
     T.photos.forEach(function (m) {
       if (m.placeId && placesById[m.placeId]) return;
       if (m.plat == null || (date && m.date !== date)) return;
-      L.marker([m.plat, m.plon], { icon: pinIcon(m.stop) }).bindPopup(popupFor(m.caption || (m.type === "video" ? "Clip" : "Photo"), esc(m.date + " " + m.time), [m]), POPUP).addTo(pins);
+      L.marker([m.plat, m.plon], { icon: pinIcon(m.stop) }).bindPopup(popupFor(m.caption || (m.type === "video" ? "Clip" : "Photo"), esc(m.date + " " + m.time), [m]), POPUP)
+        .bindTooltip(peek(m.caption || (m.type === "video" ? "Clip" : "Photo"), [m]), PEEK).addTo(pins);
       pts.push([m.plat, m.plon]);
     });
     return pts;
@@ -418,6 +426,43 @@
     if (t) markOnMap(T.photos[+t.dataset.media]);
   });
   var hoverPin = null;
+  (function () {
+    var zs = new WeakMap(), drag = null, moved = false, pts = {};
+    function st(t) { var z = zs.get(t); if (!z) { z = { s: 1, x: 0, y: 0 }; zs.set(t, z); } return z; }
+    function apply(t) {
+      var z = st(t), img = t.querySelector("img"), w = t.clientWidth, h = t.clientHeight;
+      z.x = Math.min(0, Math.max(w - w * z.s, z.x)); z.y = Math.min(0, Math.max(h - h * z.s, z.y));
+      img.style.transformOrigin = "0 0"; img.style.transform = z.s > 1 ? "translate(" + z.x + "px," + z.y + "px) scale(" + z.s + ")" : "";
+      t.classList.toggle("zoomed", z.s > 1);
+    }
+    function zoom(t, cx, cy, f) {
+      var z = st(t), r = t.getBoundingClientRect(), ns = Math.min(6, Math.max(1, z.s * f)), ox = cx - r.left, oy = cy - r.top;
+      z.x = ox - (ox - z.x) * ns / z.s; z.y = oy - (oy - z.y) * ns / z.s; z.s = ns; apply(t);
+    }
+    function tile(e) { var t = e.target.closest && e.target.closest("#detail .pgroup .thumb[data-media]"); return t && t.querySelector("img") && T.photos[+t.dataset.media].type === "photo" ? t : null; }
+    detail.addEventListener("wheel", function (e) { var t = tile(e); if (!t) return; e.preventDefault(); zoom(t, e.clientX, e.clientY, e.deltaY < 0 ? 1.25 : 0.8); }, { passive: false });
+    detail.addEventListener("pointerdown", function (e) {
+      var t = tile(e); if (!t) return; pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      drag = { t: t, x: e.clientX, y: e.clientY, d: 0 }; moved = false;
+    });
+    detail.addEventListener("pointermove", function (e) {
+      if (!drag || !pts[e.pointerId]) return;
+      var ids = Object.keys(pts); pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (ids.length === 2) {
+        var a = pts[ids[0]], b = pts[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (drag.d) zoom(drag.t, (a.x + b.x) / 2, (a.y + b.y) / 2, d / drag.d);
+        drag.d = d; moved = true; e.preventDefault(); return;
+      }
+      var z = st(drag.t), dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (z.s > 1 && (moved || Math.abs(dx) + Math.abs(dy) > 4)) { moved = true; z.x += dx; z.y += dy; apply(drag.t); e.preventDefault(); }
+      drag.x = e.clientX; drag.y = e.clientY;
+    });
+    function end(e) { delete pts[e.pointerId]; if (!Object.keys(pts).length) setTimeout(function () { drag = null; }, 0); else if (drag) drag.d = 0; }
+    detail.addEventListener("pointerup", end); detail.addEventListener("pointercancel", end);
+    // A drag or pinch is not a tap: don't open the viewer after one.
+    detail.addEventListener("click", function (e) { if (moved && tile(e)) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+    detail.addEventListener("dblclick", function (e) { var t = tile(e); if (t) { var z = st(t); z.s = 1; z.x = z.y = 0; apply(t); } });
+  })();
   detail.addEventListener("mouseleave", function () { if (hoverPin) map.removeLayer(hoverPin); });
   miniBox.onclick = function () { close(); };
   function zoomAt(cx, cy, factor) {
@@ -516,6 +561,7 @@
       if (!dot) dot = L.circleMarker([s.lat, s.lon], { radius: 8, color: "#fff", weight: 3, fillColor: ROUTE, fillOpacity: 1 }).addTo(dayRoute);
       else dot.setLatLng([s.lat, s.lon]);
       if (s.media) {
+        map.flyTo([s.lat, s.lon], Math.max(map.getZoom(), Math.min(map.getMaxZoom(), 15)), { duration: 0.8 });
         var m = s.media, place = placesById[m.placeId];
         var media = "<figure class='rc-media'>" + (m.type === "video" ? "<video src='" + m.src + "' autoplay muted playsinline></video>" : "<img src='" + m.src + "' alt=''>") + "</figure>";
         card.innerHTML = media + "<div><b>" + esc(niceName(place) || day.region) + "</b><span class='muted'>" + esc(day.label + " · " + m.time) + "</span>" + (m.caption ? "<br>" + esc(m.caption) : "") + "</div>";
