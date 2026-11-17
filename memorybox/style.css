@@ -242,7 +242,9 @@ button:focus-visible, .cell:focus-visible, .thumb:focus-visible { outline: 2px s
   .day-title h2 { font-size: 28px; }
   .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #lbMap { left: 10px; top: 10px; bottom: auto; width: 130px; height: 96px; }
-  #recapCard { width: min(240px, 62%); top: 10px; right: 10px; }
+  #recapCard { width: min(170px, 45%); top: 10px; right: 10px; }
+  #recapCard div { padding: 8px 10px 10px; font-size: 12px; }
+  #recapCard b { font-size: 16px; }
   #recDay { display: none; }
   #lightbox .caption { padding: 0 16px; bottom: 34px; }
   #lightbox .prev, #lightbox .next { top: auto; bottom: 84px; }
