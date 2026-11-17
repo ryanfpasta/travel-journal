@@ -233,8 +233,8 @@
   }
 
   function pinIcon(stop, dim) { return L.divIcon({ className: "", html: '<div class="pin' + (dim ? " dim" : "") + '">' + icon(stop || "OTHER") + "</div>", iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -16] }); }
-  function thumbHtml(m) {
-    return '<div class="thumb" data-media="' + m.index + '"><img src="' + m.thumb + '" alt="" loading="lazy">' +
+  function thumbHtml(m, sharp) {
+    return '<div class="thumb" data-media="' + m.index + '"><img src="' + (sharp && m.type === "photo" ? m.src : m.thumb) + '" decoding="async" alt="" loading="lazy">' +
       (m.type === "video" ? '<span class="play">' + iconSpan("play") + '</span><span class="dur">' + dur(m.durationMs) + "</span>" : "") + "</div>";
   }
   var popGroups = [];
@@ -326,7 +326,7 @@
       groups.forEach(function (g) {
         var p = g.place;
         h += "<div class='pgroup'><h4>" + (p ? esc(niceName(p) || "Place") + (p.city ? " <span class='muted'>" + esc(p.city) + "</span>" : "") : "Other photos") +
-          " <span class='muted'>· " + g.items.length + "</span></h4><div class='gallery n" + Math.min(g.items.length, 3) + "'>" + g.items.map(thumbHtml).join("") + "</div></div>";
+          " <span class='muted'>· " + g.items.length + "</span></h4><div class='gallery n" + Math.min(g.items.length, 3) + "'>" + g.items.map(function (m) { return thumbHtml(m, true); }).join("") + "</div></div>";
       });
     }
     // Stops in time order: first moment each place shows up that day, then entries.
@@ -406,6 +406,19 @@
     else bigPin.setLatLng([m.plat, m.plon]);
   }
   var bigPin = null;
+  // Hovering a photo in the day panel marks where it was taken on the map.
+  function markOnMap(m) {
+    if (!m || m.plat == null) return;
+    if (!hoverPin) hoverPin = L.marker([m.plat, m.plon], { icon: L.divIcon({ className: "", html: "<div class='here'></div>", iconSize: [28, 28], iconAnchor: [14, 14] }), zIndexOffset: 2000, interactive: false });
+    hoverPin.setLatLng([m.plat, m.plon]); if (!map.hasLayer(hoverPin)) hoverPin.addTo(map);
+    if (!map.getBounds().pad(-0.1).contains([m.plat, m.plon])) map.panTo([m.plat, m.plon]);
+  }
+  detail.addEventListener("mouseover", function (e) {
+    var t = e.target.closest && e.target.closest(".thumb[data-media]");
+    if (t) markOnMap(T.photos[+t.dataset.media]);
+  });
+  var hoverPin = null;
+  detail.addEventListener("mouseleave", function () { if (hoverPin) map.removeLayer(hoverPin); });
   miniBox.onclick = function () { close(); };
   function zoomAt(cx, cy, factor) {
     if (!imgEl) return;
