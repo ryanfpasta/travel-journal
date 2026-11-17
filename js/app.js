@@ -1367,7 +1367,7 @@
       '<div class="map-left"><button class="pill round" data-menu aria-label="Menu">' + icon("menu", false, "sm") + "</button>" +
       (date ? '<a class="pill" href="#/map">' + icon("close", false, "sm") + Store.shortDay(date) + "</a>" : '<button class="pill" data-trips>' + icon("luggage", false, "sm") + esc(tripName()) + icon("keyboard_arrow_down", false, "sm") + "</button>") + "</div>" +
       '<label class="pill"><input type="checkbox" id="tilesBox"' + (Store.settings.streetMap !== false ? " checked" : "") + "> Street map</label></div>" +
-      '<button class="pill map-save" id="saveArea">' + icon("cloud_download", false, "sm") + "Save this area for offline</button></div>";
+      '<button class="pill map-save" id="saveArea">' + icon("cloud_download", false, "sm") + "Save maps for offline</button></div>";
   }
   function bindMap(root, date) {
     var el = $("#map", root);
@@ -1379,7 +1379,7 @@
     }
     tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, crossOrigin: true, attribution: "© OpenStreetMap" });
     if (Store.settings.streetMap !== false) tiles.addTo(map);
-    $("#saveArea", root).onclick = saveMapArea;
+    $("#saveArea", root).onclick = chooseMapArea;
     $("#tilesBox", root).onchange = function () {
       Store.saveSettings({ streetMap: this.checked });
       if (this.checked) tiles.addTo(map); else map.removeLayer(tiles);
@@ -1413,6 +1413,26 @@
     var x0 = x(bounds.getWest()), x1 = x(bounds.getEast()), y0 = y(Math.min(85, bounds.getNorth())), y1 = y(Math.max(-85, bounds.getSouth()));
     for (var tx = x0; tx <= x1; tx++) for (var ty = y0; ty <= y1; ty++) if (ty >= 0 && ty < n) out.push(z + "/" + (((tx % n) + n) % n) + "/" + ty);
     return out;
+  }
+  // Main stops in China: one tap centres the map on a city and saves it for offline use.
+  var CITIES = [["Beijing", 39.904, 116.397], ["Shanghai", 31.230, 121.474], ["Xi'an", 34.341, 108.940], ["Chengdu", 30.657, 104.066],
+    ["Chongqing", 29.563, 106.551], ["Guilin", 25.274, 110.290], ["Yangshuo", 24.778, 110.496], ["Hangzhou", 30.274, 120.155],
+    ["Suzhou", 31.299, 120.585], ["Zhangjiajie", 29.117, 110.479], ["Guangzhou", 23.129, 113.264], ["Shenzhen", 22.543, 114.058],
+    ["Hong Kong", 22.302, 114.177], ["Kunming", 25.039, 102.718], ["Lijiang", 26.872, 100.230], ["Harbin", 45.803, 126.535]];
+  function chooseMapArea() {
+    var html = "<h3>Save a map for offline</h3><p class='muted'>Pick a city to save its centre down to street level, or save what's on screen now.</p><div class='pick-list'>" +
+      '<button class="row" data-city="-1"><span class="lead">' + icon("location_on", true) + '</span><div class="body"><b>The area on screen now</b></div></button>' +
+      CITIES.map(function (c, i) { return '<button class="row" data-city="' + i + '"><span class="lead">' + icon("cloud_download") + '</span><div class="body"><b>' + esc(c[0]) + "</b></div></button>"; }).join("") + "</div>";
+    var sh = sheet(html, [{ label: "Cancel" }]);
+    $$("[data-city]", sh.el).forEach(function (b) {
+      b.onclick = function () {
+        sh.close();
+        var c = CITIES[+b.dataset.city];
+        if (!c) return saveMapArea();
+        map.once("moveend", function () { setTimeout(saveMapArea, 200); });
+        map.setView([c[1], c[2]], 13);
+      };
+    });
   }
   function saveMapArea() {
     if (!map) return;
@@ -1477,7 +1497,7 @@
         item("redeem", "Export memory box", "A keepsake to open on a laptop", 'id="export"'),
       ]) +
       group("Maps", [
-        item("cloud_download", "Offline maps", "On the Map tab, zoom to a town and tap Save this area", "", { href: "#/map" }),
+        item("cloud_download", "Offline maps", "On the Map tab, tap Save maps for offline and pick a city", "", { href: "#/map" }),
       ]) +
       group("Location", [
         '<label class="item">' + icon("my_location") + '<div class="body"><b>Log location while open</b><span>Every ' + st.intervalMinutes + " minutes. iPhone web apps can't track in the background.</span></div>" +
