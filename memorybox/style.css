@@ -266,3 +266,11 @@ button:focus-visible, .cell:focus-visible, .thumb:focus-visible { outline: 2px s
 .peek span { font-size: 12px; color: var(--muted, #776); }
 #detail .pgroup .thumb img { user-select: none; -webkit-user-drag: none; }
 .leaflet-marker-pane .here { pointer-events: none; }
+
+/* Taken by: shown only when photos come from two or more people */
+.byfilter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 14px; }
+.byfilter .label { margin-right: 4px; }
+.byfilter .chip { height: 32px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; transition: background .2s var(--ease); }
+.byfilter .chip:hover { background: var(--tint); }
+.byfilter .chip[aria-pressed="true"] { background: var(--theme); border-color: var(--theme); color: #fff; }
+.dark .byfilter .chip[aria-pressed="true"] { color: var(--bg); }
