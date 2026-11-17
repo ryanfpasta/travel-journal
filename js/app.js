@@ -411,8 +411,7 @@
       var fix = gps.length ? { lat: gps[0].lat, lon: gps[0].lon, accuracyM: 30 } : await Store.getFix(10000).catch(function () { return null; });
       if (!fix) return toast("No location for a new place. Turn on Location, or pick an existing place.", 5000);
       var t = gps.length ? gps[0].takenAtUtc : Date.now();
-      var pl = await Store.findOrCreatePlace(fix, t, Store.zone());
-      if (/^New place/.test(pl.name)) pl = await Store.updatePlace(pl.id, { name: name }) || S.places.get(pl.id);
+      var pl = await Store.createPlace(fix, t, Store.zone(), name);
       onPick(pl);
     };
   }
