@@ -72,6 +72,11 @@
     if (m.placeId) (mediaByPlace[m.placeId] = mediaByPlace[m.placeId] || []).push(m);
   });
   var routeByDate = {}; T.route.forEach(function (p) { (routeByDate[p.date] = routeByDate[p.date] || []).push(p); });
+  // "Taken by": when photos come from more than one person (m.by), a filter limits the day panel, pins and recap to one of them.
+  var BY = []; T.photos.forEach(function (m) { if (m.by && BY.indexOf(m.by) < 0) BY.push(m.by); });
+  BY.sort(function (a, b) { return a.localeCompare(b); });
+  var who = null;
+  function shown(m) { return !who || m.by === who; }
   var entriesByDate = {}; T.entries.forEach(function (e) { (entriesByDate[e.date] = entriesByDate[e.date] || []).push(e); });
 
   // ---- Header ----
@@ -261,7 +266,7 @@
     popGroups = [];
     var pts = [];
     T.places.forEach(function (p) {
-      var media = (mediaByPlace[p.id] || []).filter(function (m) { return !date || m.date === date; });
+      var media = (mediaByPlace[p.id] || []).filter(function (m) { return (!date || m.date === date) && shown(m); });
       if (!media.length) return;
       var entries = T.entries.filter(function (e) { return e.placeId === p.id && (!date || e.date === date); });
       L.marker([p.lat, p.lon], { icon: pinIcon(p.stop || (entries[0] && entries[0].stop)) })
@@ -272,7 +277,7 @@
     });
     T.photos.forEach(function (m) {
       if (m.placeId && placesById[m.placeId]) return;
-      if (m.plat == null || (date && m.date !== date)) return;
+      if (m.plat == null || (date && m.date !== date) || !shown(m)) return;
       L.marker([m.plat, m.plon], { icon: pinIcon(m.stop) }).bindPopup(popupFor(m.caption || (m.type === "video" ? "Clip" : "Photo"), esc(m.date + " " + m.time), [m]), POPUP)
         .bindTooltip(peek(m.caption || (m.type === "video" ? "Clip" : "Photo"), [m]), PEEK).addTo(pins);
       pts.push([m.plat, m.plon]);
@@ -309,10 +314,12 @@
     if (opts && opts.scroll) detail.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  var detailDate = null;
   function renderDetail(date) {
+    detailDate = date;
     var day = dayByDate[date];
     if (!day) { detail.innerHTML = "<p class='muted'>Pick a day in the calendar to see its photos and stops.</p>"; return; }
-    var media = (mediaByDate[date] || []).slice().sort(function (a, b) { return a.utc - b.utc; });
+    var media = (mediaByDate[date] || []).filter(shown).sort(function (a, b) { return a.utc - b.utc; });
     var dd = parseDate(date), long = dd.toLocaleDateString(undefined, { weekday: "long" }) + " " + dd.getDate() + " " + dd.toLocaleDateString(undefined, { month: "long" });
     var h = "<p class='day-eyebrow'>Day " + (day.index + 1) + " of " + T.days.length + "</p>";
     h += "<div class='day-title'><h2>" + esc(long) + "</h2><span class='mood'>" + mood(day.mood) + "</span></div>";
@@ -372,7 +379,8 @@
   function resetZoom() { z = { s: 1, x: 0, y: 0 }; applyZoom(); }
   /** Opens the viewer on one photo; group (a pin's photos) limits Previous / Next to that place. */
   function openMedia(m, group) {
-    list = group && group.indexOf(m) >= 0 ? group : allMedia;
+    list = group && group.indexOf(m) >= 0 ? group : allMedia.filter(shown);
+    if (list.indexOf(m) < 0) list = allMedia;
     cur = list.indexOf(m);
     if (map) map.closePopup();
     lb.hidden = false; showCur();
@@ -390,7 +398,7 @@
     var place = placesById[m.placeId];
     showWhere(m);
     lb.querySelector(".prev").hidden = cur <= 0; lb.querySelector(".next").hidden = cur >= list.length - 1;
-    cap.innerHTML = esc([m.caption, niceName(place), (dayByDate[m.date] ? dayByDate[m.date].label : m.date) + ", " + m.time].filter(Boolean).join(" · ")) + "<span class='count'>" + (cur + 1) + " / " + list.length + "</span>";
+    cap.innerHTML = esc([m.caption, niceName(place), (dayByDate[m.date] ? dayByDate[m.date].label : m.date) + ", " + m.time, BY.length > 1 && m.by ? "by " + m.by : ""].filter(Boolean).join(" · ")) + "<span class='count'>" + (cur + 1) + " / " + list.length + "</span>";
   }
   var mini = null, miniPin = null, miniBox = document.getElementById("lbMap");
   function showWhere(m) {
@@ -526,7 +534,7 @@
   var playBtn = document.getElementById("play"), bar = document.getElementById("recapBar"), card = document.getElementById("recapCard");
   var rec = null;
   function recapDays() {
-    return T.days.filter(function (d) { return (routeByDate[d.date] || []).length || (mediaByDate[d.date] || []).some(function (m) { return m.plat != null; }); });
+    return T.days.filter(function (d) { return (routeByDate[d.date] || []).length || (mediaByDate[d.date] || []).some(function (m) { return m.plat != null && shown(m); }); });
   }
   function setPlay(on) { playBtn.querySelector(".i").innerHTML = ico(on ? "stop" : "play"); playBtn.querySelector(".lbl").textContent = on ? "Stop recap" : "Play recap"; }
   function setPause(p) { var b = document.getElementById("recPause"); b.innerHTML = iconSpan(p ? "play" : "pause"); b.setAttribute("aria-label", p ? "Resume" : "Pause"); }
@@ -546,7 +554,7 @@
     selectDay(day.date, { keepView: true });
     dayRoute.clearLayers();
     var steps = (routeByDate[day.date] || []).map(function (p) { return { utc: p.utc, lat: p.lat, lon: p.lon }; });
-    (mediaByDate[day.date] || []).forEach(function (m) { if (m.plat != null) steps.push({ utc: m.utc, lat: m.plat, lon: m.plon, media: m }); });
+    (mediaByDate[day.date] || []).forEach(function (m) { if (m.plat != null && shown(m)) steps.push({ utc: m.utc, lat: m.plat, lon: m.plon, media: m }); });
     steps.sort(function (a, b) { return a.utc - b.utc; });
     var pts = steps.map(function (s) { return [s.lat, s.lon]; });
     if (pts.length) map.flyToBounds(pts, { padding: [60, 60], maxZoom: 15, duration: 1.2 });
@@ -601,6 +609,26 @@
   };
   document.getElementById("recSpeed").onchange = function () { if (rec) rec.speed = +this.value; };
   document.getElementById("recStop").onclick = function () { stopRecap(); fitAll(); };
+
+  // ---- Taken by filter (only with photos from two or more people) ----
+  if (BY.length > 1) (function () {
+    var bar = el("div", "byfilter");
+    bar.setAttribute("role", "group"); bar.setAttribute("aria-label", "Taken by");
+    bar.appendChild(el("span", "label", "Taken by"));
+    [null].concat(BY).forEach(function (name) {
+      var b = el("button", "chip", esc(name || "Everyone"));
+      b.type = "button"; b.setAttribute("aria-pressed", String(who === name));
+      b.onclick = function () {
+        who = name;
+        bar.querySelectorAll(".chip").forEach(function (c) { c.setAttribute("aria-pressed", String(c === b)); });
+        stopRecap();
+        if (selected) selectDay(selected, { keepView: true }); else { fitAll(); renderDetail(detailDate); }
+      };
+      bar.appendChild(b);
+    });
+    var actions = document.getElementById("actions");
+    actions.parentNode.insertBefore(bar, actions.nextSibling);
+  })();
 
   // ---- Start: whole trip on the map, first day with something logged in the panel ----
   fitAll();
