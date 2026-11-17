@@ -258,6 +258,14 @@
 
   // ---- Places and points ----
 
+  /** Always makes a new place (the user's New place), even next to an existing one. */
+  async function createPlace(fix, timeUtc, tzId, name) {
+    var date = localDate(timeUtc, tzId);
+    return put("places", {
+      id: newId(), tripId: tripId(), name: name, city: "", lat: fix.lat, lon: fix.lon, createdAtUtc: timeUtc, tzId: tzId,
+      firstLocalDate: date, rating: null, mood: null, note: "", updatedAtUtc: Date.now(),
+    });
+  }
   async function findOrCreatePlace(fix, timeUtc, tzId) {
     var radius = Math.min(500, Math.max(150, (fix.accuracyM || 50) * 1.5));
     var nearest = null, nd = Infinity;
@@ -558,7 +566,7 @@
     zone: zone, localDate: localDate, today: today, prettyDay: prettyDay, shortDay: shortDay, clock: clock, newId: newId, distanceM: distanceM, dateObj: dateObj,
     allDates: allDates, day: day, placePhotos: placePhotos, placeEntries: placeEntries, currentPlaceId: currentPlaceId,
     recordPoint: recordPoint, recentGoodFix: recentGoodFix, lastPointUtc: lastPointUtc, getFix: getFix,
-    findOrCreatePlace: findOrCreatePlace, mergePlaces: mergePlaces, deletePlace: deletePlace, updatePlace: updatePlace,
+    findOrCreatePlace: findOrCreatePlace, createPlace: createPlace, mergePlaces: mergePlaces, deletePlace: deletePlace, updatePlace: updatePlace,
     saveDayLog: saveDayLog, newEntry: newEntry, updateEntry: updateEntry, deleteEntry: deleteEntry,
     addPhoto: addPhoto, updatePhoto: updatePhoto, deletePhoto: deletePhoto, applyFixToPhoto: applyFixToPhoto,
     live: live, trashed: trashed, TRASH_DAYS: TRASH_DAYS, updatePhotos: updatePhotos, trashPhotos: trashPhotos, restorePhotos: restorePhotos,
