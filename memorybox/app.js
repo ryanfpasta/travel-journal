@@ -216,9 +216,20 @@
   var allRoute = L.layerGroup().addTo(map), dayRoute = L.layerGroup().addTo(map), pins = L.layerGroup().addTo(map);
   var fullLine = T.route.map(function (p) { return [p.lat, p.lon]; });
   var CASING = S.dark ? "#000" : "#fff";
+  /** Where the trip went, in time order, from the photos and clips when no GPS track was saved. */
+  function photoPath(list) {
+    var out = [];
+    list.filter(function (m) { return m.plat != null; }).sort(function (a, b) { return a.utc - b.utc; }).forEach(function (m) {
+      var q = [m.plat, m.plon], l = out[out.length - 1];
+      if (!l || l[0] !== q[0] || l[1] !== q[1]) out.push(q);
+    });
+    return out;
+  }
+  var guessed = fullLine.length < 2;
+  if (guessed) fullLine = photoPath(T.photos);
   if (fullLine.length > 1) {
     L.polyline(fullLine, { color: CASING, weight: 7, opacity: .85, lineCap: "round", lineJoin: "round" }).addTo(allRoute);
-    L.polyline(fullLine, { color: ROUTE, weight: 3.5, opacity: .9, lineCap: "round", lineJoin: "round" }).addTo(allRoute);
+    L.polyline(fullLine, { color: ROUTE, weight: 3.5, opacity: .9, lineCap: "round", lineJoin: "round", dashArray: guessed ? "2 8" : null }).addTo(allRoute);
   }
 
   function pinIcon(stop, dim) { return L.divIcon({ className: "", html: '<div class="pin' + (dim ? " dim" : "") + '">' + icon(stop || "OTHER") + "</div>", iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -16] }); }
@@ -277,6 +288,7 @@
     document.querySelectorAll(".cell").forEach(function (c) { c.classList.toggle("selected", c.dataset.date === date); });
     dayRoute.clearLayers();
     var line = (routeByDate[date] || []).map(function (p) { return [p.lat, p.lon]; });
+    if (line.length < 2) line = photoPath(mediaByDate[date] || []);
     if (line.length > 1) {
       L.polyline(line, { color: CASING, weight: 10, opacity: .9, lineCap: "round", lineJoin: "round" }).addTo(dayRoute);
       L.polyline(line, { color: ROUTE, weight: 5, opacity: 1, lineCap: "round", lineJoin: "round" }).addTo(dayRoute);
@@ -303,7 +315,20 @@
       h += "<h3 class='label sub'>Plan</h3><ul class='plan-list'>" + day.planned.map(function (it) {
         return "<li><span class='tag " + it.status + "'>" + (TAG[it.status] || "Planned") + "</span>" + esc(it.text) + "</li>"; }).join("") + "</ul>";
     }
-    if (media.length) h += "<h3 class='label sub'>Photos and clips · " + media.length + "</h3><div class='gallery n" + Math.min(media.length, 3) + "'>" + media.map(thumbHtml).join("") + "</div>";
+    if (media.length) {
+      h += "<h3 class='label sub'>Photos and clips · " + media.length + "</h3>";
+      var groups = [], byKey = {};
+      media.forEach(function (m) {
+        var k = placesById[m.placeId] ? m.placeId : "";
+        if (!byKey[k]) { byKey[k] = { place: placesById[m.placeId], items: [] }; groups.push(byKey[k]); }
+        byKey[k].items.push(m);
+      });
+      groups.forEach(function (g) {
+        var p = g.place;
+        h += "<div class='pgroup'><h4>" + (p ? esc(niceName(p) || "Place") + (p.city ? " <span class='muted'>" + esc(p.city) + "</span>" : "") : "Other photos") +
+          " <span class='muted'>· " + g.items.length + "</span></h4><div class='gallery n" + Math.min(g.items.length, 3) + "'>" + g.items.map(thumbHtml).join("") + "</div></div>";
+      });
+    }
     // Stops in time order: first moment each place shows up that day, then entries.
     var events = [];
     var seen = {};
@@ -342,7 +367,7 @@
     list = group && group.indexOf(m) >= 0 ? group : allMedia;
     cur = list.indexOf(m);
     if (map) map.closePopup();
-    showCur(); lb.hidden = false;
+    lb.hidden = false; showCur();
   }
   function showCur() {
     var m = list[cur]; if (!m) return;
@@ -355,9 +380,33 @@
       resetZoom();
     }
     var place = placesById[m.placeId];
+    showWhere(m);
     lb.querySelector(".prev").hidden = cur <= 0; lb.querySelector(".next").hidden = cur >= list.length - 1;
     cap.innerHTML = esc([m.caption, niceName(place), (dayByDate[m.date] ? dayByDate[m.date].label : m.date) + ", " + m.time].filter(Boolean).join(" · ")) + "<span class='count'>" + (cur + 1) + " / " + list.length + "</span>";
   }
+  var mini = null, miniPin = null, miniBox = document.getElementById("lbMap");
+  function showWhere(m) {
+    if (m.plat == null || typeof L === "undefined") { miniBox.hidden = true; return; }
+    miniBox.hidden = false;
+    if (!mini) {
+      mini = L.map(miniBox, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false });
+      mini.createPane("world").style.zIndex = 150;
+      L.geoJSON(world, { pane: "world", style: { color: S.landEdge || "#c9b8aa", weight: 1, fillColor: S.land || "#f4ece2", fillOpacity: 1 }, interactive: false }).addTo(mini);
+      if (hasTiles) new LocalTiles({ minZoom: T.tiles.minZoom, maxZoom: 18, zIndex: 2 }).addTo(mini);
+      if (fullLine.length > 1) L.polyline(fullLine, { color: ROUTE, weight: 3, opacity: .8 }).addTo(mini);
+      miniPin = L.circleMarker([m.plat, m.plon], { radius: 8, color: "#fff", weight: 3, fillColor: ROUTE, fillOpacity: 1 }).addTo(mini);
+    }
+    var zm = hasTiles ? Math.min(T.tiles.fullMaxZoom || T.tiles.maxZoom, 13) : 6;
+    mini.invalidateSize();
+    mini.setView([m.plat, m.plon], zm, { animate: false });
+    miniPin.setLatLng([m.plat, m.plon]);
+    // Also mark it on the big map, so it is there when the viewer closes.
+    map.panTo([m.plat, m.plon], { animate: false });
+    if (!bigPin) bigPin = L.circleMarker([m.plat, m.plon], { radius: 11, color: "#fff", weight: 4, fillColor: ROUTE, fillOpacity: 1 }).addTo(map);
+    else bigPin.setLatLng([m.plat, m.plon]);
+  }
+  var bigPin = null;
+  miniBox.onclick = function () { close(); };
   function zoomAt(cx, cy, factor) {
     if (!imgEl) return;
     var r = imgEl.getBoundingClientRect();
@@ -455,7 +504,7 @@
       else dot.setLatLng([s.lat, s.lon]);
       if (s.media) {
         var m = s.media, place = placesById[m.placeId];
-        var media = m.type === "video" ? "<video src='" + m.src + "' autoplay muted playsinline></video>" : "<img src='" + m.src + "' alt=''>";
+        var media = "<figure class='rc-media'>" + (m.type === "video" ? "<video src='" + m.src + "' autoplay muted playsinline></video>" : "<img src='" + m.src + "' alt=''>") + "</figure>";
         card.innerHTML = media + "<div><b>" + esc(niceName(place) || day.region) + "</b><span class='muted'>" + esc(day.label + " · " + m.time) + "</span>" + (m.caption ? "<br>" + esc(m.caption) : "") + "</div>";
         // Clips play for their length (up to 10 s), photos for about 2.5 s.
         wait(m.type === "video" ? Math.min(10000, m.durationMs || 5000) : 2500, next);

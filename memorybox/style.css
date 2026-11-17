@@ -29,9 +29,9 @@ h1, h2, h3, p, dl, dd { margin: 0; }
 .i svg { width: 100%; height: 100%; fill: currentColor; }
 
 /* ---------- Page layout: story on the left, map on the right ---------- */
-#page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .92fr); height: 100%; }
+#page { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .8fr); height: 100%; }
 #left { overflow-y: auto; padding: 40px clamp(20px, 3.4vw, 48px) 48px; scroll-behavior: smooth; }
-#left > * { max-width: 760px; margin-left: auto; margin-right: auto; }
+#left > * { max-width: 980px; margin-left: auto; margin-right: auto; }
 #mapwrap { padding: 16px 16px 16px 0; min-height: 0; }
 #mapcard { position: relative; height: 100%; border-radius: 24px; overflow: hidden; background: var(--sea); box-shadow: var(--shadow-1); }
 #map { position: absolute; inset: 0; background: var(--sea); font: inherit; }
@@ -113,7 +113,10 @@ button:focus-visible, .cell:focus-visible, .thumb:focus-visible { outline: 2px s
 .sub { margin: 32px 0 12px; }
 
 /* Photo mosaic: the first photo leads */
-.gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 8px; }
+.gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 10px; }
+.pgroup { margin-top: 18px; }
+.pgroup h4 { margin: 0 0 10px; font: 400 21px/1.25 var(--serif); }
+.pgroup h4 .muted { font: 500 14px var(--sans, inherit); }
 .gallery .thumb:first-child { grid-column: span 2; grid-row: span 2; }
 .gallery.n1 { grid-template-columns: 1fr; }
 .gallery.n1 .thumb { aspect-ratio: 16 / 10; }
@@ -181,7 +184,9 @@ button:focus-visible, .cell:focus-visible, .thumb:focus-visible { outline: 2px s
 #recapBar select { background: rgba(255, 255, 255, .12); border: 0; border-radius: 999px; padding: 6px 10px; color: #fff; font-size: 13px; }
 #recapBar select option { color: #000; }
 #recapCard { position: absolute; top: 16px; right: 16px; z-index: 650; width: min(320px, 70%); background: var(--card); color: var(--ink); border-radius: 18px; box-shadow: var(--shadow-2); overflow: hidden; animation: rise .35s var(--ease); }
-#recapCard img, #recapCard video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #000; }
+#recapCard .rc-media { position: relative; margin: 0; padding: 0; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; background: #000; }
+#recapCard .rc-media img, #recapCard .rc-media video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+#recapCard > div { position: relative; background: var(--card); }
 #recapCard div { padding: 12px 16px 14px; font-size: 14px; }
 #recapCard b { display: block; font: 400 20px/1.2 var(--serif); }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -193,6 +198,7 @@ button:focus-visible, .cell:focus-visible, .thumb:focus-visible { outline: 2px s
 #lightbox .stage video { max-width: 92vw; max-height: calc(100vh - 110px); border-radius: 6px; }
 #lightbox .caption { position: absolute; left: 0; right: 0; bottom: 30px; text-align: center; font-size: 15px; padding: 0 72px; }
 #lightbox .caption .count { color: rgba(255, 255, 255, .55); margin-left: 8px; font-variant-numeric: tabular-nums; }
+#lbMap { position: absolute; left: 16px; bottom: 84px; width: 220px; height: 160px; border-radius: 14px; overflow: hidden; border: 2px solid rgba(255, 255, 255, .8); background: var(--sea); z-index: 2; cursor: pointer; }
 #lightbox .hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: rgba(255, 255, 255, .4); font-size: 12px; }
 #lightbox .icon-btn { position: absolute; width: 48px; height: 48px; background: rgba(255, 255, 255, .1); }
 #lightbox .icon-btn:hover { background: rgba(255, 255, 255, .2); }
@@ -229,7 +235,8 @@ button:focus-visible, .cell:focus-visible, .thumb:focus-visible { outline: 2px s
   .cell.out { display: none; }
   .cell .wd { display: block; }
   .day-title h2 { font-size: 28px; }
-  .gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #lbMap { left: 10px; top: 10px; bottom: auto; width: 130px; height: 96px; }
   #recapCard { width: min(240px, 62%); top: 10px; right: 10px; }
   #recDay { display: none; }
   #lightbox .caption { padding: 0 16px; bottom: 34px; }
