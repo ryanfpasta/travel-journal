@@ -419,7 +419,8 @@
     if (!m || m.plat == null) return;
     if (!hoverPin) hoverPin = L.marker([m.plat, m.plon], { icon: L.divIcon({ className: "", html: "<div class='here'></div>", iconSize: [28, 28], iconAnchor: [14, 14] }), zIndexOffset: 2000, interactive: false });
     hoverPin.setLatLng([m.plat, m.plon]); if (!map.hasLayer(hoverPin)) hoverPin.addTo(map);
-    if (!map.getBounds().pad(-0.1).contains([m.plat, m.plon])) map.panTo([m.plat, m.plon]);
+    clearTimeout(markOnMap.t);
+    markOnMap.t = setTimeout(function () { map.flyTo([m.plat, m.plon], Math.max(map.getZoom(), Math.min(map.getMaxZoom(), 16)), { duration: 0.6 }); }, 250);
   }
   detail.addEventListener("mouseover", function (e) {
     var t = e.target.closest && e.target.closest(".thumb[data-media]");
@@ -441,8 +442,10 @@
     }
     function tile(e) { var t = e.target.closest && e.target.closest("#detail .pgroup .thumb[data-media]"); return t && t.querySelector("img") && T.photos[+t.dataset.media].type === "photo" ? t : null; }
     detail.addEventListener("wheel", function (e) { var t = tile(e); if (!t) return; e.preventDefault(); zoom(t, e.clientX, e.clientY, e.deltaY < 0 ? 1.25 : 0.8); }, { passive: false });
+    detail.addEventListener("dragstart", function (e) { if (tile(e)) e.preventDefault(); });
     detail.addEventListener("pointerdown", function (e) {
       var t = tile(e); if (!t) return; pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (st(t).s > 1) { e.preventDefault(); try { t.setPointerCapture(e.pointerId); } catch (x) { } }
       drag = { t: t, x: e.clientX, y: e.clientY, d: 0 }; moved = false;
     });
     detail.addEventListener("pointermove", function (e) {
@@ -463,7 +466,7 @@
     detail.addEventListener("click", function (e) { if (moved && tile(e)) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
     detail.addEventListener("dblclick", function (e) { var t = tile(e); if (t) { var z = st(t); z.s = 1; z.x = z.y = 0; apply(t); } });
   })();
-  detail.addEventListener("mouseleave", function () { if (hoverPin) map.removeLayer(hoverPin); });
+  detail.addEventListener("mouseleave", function () { clearTimeout(markOnMap.t); if (hoverPin) map.removeLayer(hoverPin); });
   miniBox.onclick = function () { close(); };
   function zoomAt(cx, cy, factor) {
     if (!imgEl) return;
@@ -558,10 +561,14 @@
       if (i >= steps.length) { wait(1200, function () { rec.dayIdx++; playDay(); }); return; }
       var s = steps[i++];
       line.addLatLng([s.lat, s.lon]); casing.addLatLng([s.lat, s.lon]);
-      if (!dot) dot = L.circleMarker([s.lat, s.lon], { radius: 8, color: "#fff", weight: 3, fillColor: ROUTE, fillOpacity: 1 }).addTo(dayRoute);
+      if (!dot) dot = L.marker([s.lat, s.lon], { icon: L.divIcon({ className: "", html: "<div class='here'></div>", iconSize: [28, 28], iconAnchor: [14, 14] }), zIndexOffset: 3000, interactive: false }).addTo(dayRoute);
       else dot.setLatLng([s.lat, s.lon]);
       if (s.media) {
-        map.flyTo([s.lat, s.lon], Math.max(map.getZoom(), Math.min(map.getMaxZoom(), 15)), { duration: 0.8 });
+        // Centre the spot in the part of the map the photo card doesn't cover.
+        var zt = Math.max(map.getZoom(), Math.min(map.getMaxZoom(), 15)), cw = card.offsetWidth || 0, ch = card.offsetHeight || 0;
+        var mw = map.getSize().x, narrow = cw > mw * 0.5;
+        var c = map.unproject(map.project([s.lat, s.lon], zt).add(narrow ? [0, -ch / 2] : [cw / 2, 0]), zt);
+        map.flyTo(c, zt, { duration: 0.8 });
         var m = s.media, place = placesById[m.placeId];
         var media = "<figure class='rc-media'>" + (m.type === "video" ? "<video src='" + m.src + "' autoplay muted playsinline></video>" : "<img src='" + m.src + "' alt=''>") + "</figure>";
         card.innerHTML = media + "<div><b>" + esc(niceName(place) || day.region) + "</b><span class='muted'>" + esc(day.label + " · " + m.time) + "</span>" + (m.caption ? "<br>" + esc(m.caption) : "") + "</div>";
