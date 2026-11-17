@@ -262,3 +262,5 @@ button:focus-visible, .cell:focus-visible, .thumb:focus-visible { outline: 2px s
 .peek div { padding: 8px 12px 10px; white-space: normal; }
 .peek b { display: block; font-size: 14px; }
 .peek span { font-size: 12px; color: var(--muted, #776); }
+#detail .pgroup .thumb img { user-select: none; -webkit-user-drag: none; }
+.leaflet-marker-pane .here { pointer-events: none; }
